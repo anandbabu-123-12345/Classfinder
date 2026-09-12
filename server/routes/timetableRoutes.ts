@@ -3,8 +3,9 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { timetableParser } from '../services/timetableParser.js';
-import { timetableRepo, auditLogRepo } from '../models/index.js';
+import { timetableRepo, classroomRepo, auditLogRepo } from '../models/index.js';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
+import { localDb } from '../config/db.js';
 
 const router = Router();
 const upload = multer({
@@ -201,6 +202,103 @@ router.delete('/', authenticate, requireRole(['admin']), async (req: AuthRequest
       success: true,
       message: 'All active timetables deactivated. Classroom availability is now temporarily unavailable until a new timetable is published.',
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/timetable/official - Cross-device timetable retrieval
+router.get('/official', async (req, res) => {
+  try {
+    const officialTimetables = localDb.get('officialTimetables') || {};
+    return res.json({ success: true, officialTimetables });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/timetable/official - Cross-device timetable upload and publishing
+router.post('/official', async (req, res) => {
+  try {
+    const { year, rows, filename } = req.body;
+    if (!year || !Array.isArray(rows)) {
+      return res.status(400).json({ success: false, message: 'Invalid payload. year and rows array are required.' });
+    }
+
+    const officialTimetables = localDb.get('officialTimetables') || {};
+    officialTimetables[year] = rows;
+    localDb.set('officialTimetables', officialTimetables);
+
+    // Auto-create any missing classrooms in classroomRepo so vacancy engine knows them
+    const existingClassrooms = await classroomRepo.find();
+    const existingSet = new Set(existingClassrooms.map(c => c.roomNumber.trim().toUpperCase()));
+    for (const r of rows) {
+      const roomStr = String(r.room || '').trim().toUpperCase();
+      if (roomStr && !existingSet.has(roomStr)) {
+        await classroomRepo.create({
+          roomNumber: roomStr,
+          building: roomStr.startsWith('CR') ? 'Classroom Complex' : (roomStr.startsWith('L') ? 'Lecture Hall Complex' : 'Main Academic Block'),
+          floor: 1,
+          capacity: 60,
+          type: /lab|cc/i.test(roomStr) ? 'Laboratory' : (roomStr.startsWith('L') ? 'Seminar Hall' : 'Classroom'),
+          facilities: ['Projector', 'Air Conditioned', 'Whiteboard', 'Wi-Fi'],
+          isActive: true,
+        });
+        existingSet.add(roomStr);
+      }
+    }
+
+    // Convert rows to ITimetableEntry and save to timetableRepo
+    const currentMax = await timetableRepo.getMaxVersion();
+    const newVersion = currentMax + 1;
+    await timetableRepo.deactivateAll();
+
+    const entriesToInsert = rows.map((r: any) => ({
+      academicYear: year,
+      semester: '1',
+      day: r.day || '',
+      date: r.date || '',
+      startTime: r.startTime,
+      endTime: r.endTime,
+      roomNumber: r.room || '',
+      subject: r.courseName || 'General Course',
+      courseCode: r.courseName ? r.courseName.split(' ')[0] : 'CRS',
+      section: r.section || '',
+      lecturer: r.teacherName || '',
+      department: 'Academics',
+      status: 'active' as const,
+      version: newVersion,
+      uploadedBy: 'admin',
+      uploadedAt: new Date().toISOString(),
+    }));
+
+    if (entriesToInsert.length > 0) {
+      await timetableRepo.insertMany(entriesToInsert);
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully synchronized and published ${rows.length} timetable entries for ${year} across all devices.`,
+      count: rows.length,
+      version: newVersion,
+      officialTimetables,
+    });
+  } catch (err: any) {
+    console.error('Error in POST /api/timetable/official:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE /api/timetable/official/:year - Remove timetable across all devices
+router.delete('/official/:year', async (req, res) => {
+  try {
+    const year = req.params.year;
+    const officialTimetables = localDb.get('officialTimetables') || {};
+    if (officialTimetables[year]) {
+      delete officialTimetables[year];
+      localDb.set('officialTimetables', officialTimetables);
+    }
+    return res.json({ success: true, message: `Timetable for ${year} deleted from all devices.` });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }

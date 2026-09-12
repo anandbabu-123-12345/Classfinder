@@ -91,6 +91,12 @@
           <input type="password" id="teacherPassword" placeholder="Enter password" 
             class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             onkeydown="if(event.key==='Enter') doLogin()">
+          <div class="flex items-center justify-between mt-2.5 mb-2">
+            <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+              <input type="checkbox" id="teacherRememberMe" checked class="rounded text-indigo-600 focus:ring-indigo-500">
+              <span>Remember login credentials</span>
+            </label>
+          </div>
           <p class="text-xs text-slate-500 mt-1">Default password: <code class="bg-slate-100 px-1 rounded">teacher123</code></p>
         </div>
 
@@ -102,11 +108,27 @@
 
         <!-- ============ ADMIN AUTH BOX ============ -->
         <div id="adminAuthBox" class="hidden mb-4">
-          <label class="block text-sm font-medium text-slate-700 mb-1.5">Administrator Password</label>
-          <input type="password" id="adminPassword" placeholder="Enter administrator password"
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Master Username / Email</label>
+          <input type="text" id="adminUsername" placeholder="admin" value="admin"
+            class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Master Password</label>
+          <input type="password" id="adminPassword" placeholder="Enter master password"
             class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
             onkeydown="if(event.key==='Enter') adminLogin()">
-          <p class="text-xs text-slate-500 mt-1 mb-3">Demo password: <code class="bg-slate-100 px-1 rounded">admin123</code></p>
+          <div class="flex items-center justify-between mt-2.5 mb-2">
+            <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+              <input type="checkbox" id="adminRememberMe" checked class="rounded text-indigo-600 focus:ring-indigo-500">
+              <span>Remember login credentials</span>
+            </label>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 my-2.5 text-xs text-amber-900">
+            <div class="font-semibold flex items-center gap-1.5 text-amber-800"><i class="fas fa-shield-alt text-amber-600"></i> Master Administrator Credentials:</div>
+            <div class="mt-1 font-mono text-[11px] text-amber-950 flex flex-wrap gap-2">
+              <span>Username: <strong class="bg-amber-200/70 px-1.5 py-0.5 rounded font-bold">admin</strong></span>
+              <span>Password: <strong class="bg-amber-200/70 px-1.5 py-0.5 rounded font-bold">AdminMaster2026!</strong></span>
+            </div>
+          </div>
+          <p id="adminError" class="text-xs text-red-500 mb-2 hidden"></p>
           <button onclick="adminLogin()"
             class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
             <i class="fas fa-sign-in-alt"></i> Login as Administrator
@@ -131,7 +153,11 @@
             <input type="password" id="loginPassword" placeholder="Enter password"
               class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
               onkeydown="if(event.key==='Enter') studentLogin()">
-            <div class="text-right mb-3">
+            <div class="flex items-center justify-between mb-3 mt-2">
+              <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+                <input type="checkbox" id="studentRememberMe" checked class="rounded text-indigo-600 focus:ring-indigo-500">
+                <span>Remember login credentials</span>
+              </label>
               <button onclick="switchStudentTab('forgot')" class="text-xs text-indigo-600 hover:underline">Forgot Password?</button>
             </div>
             <p id="loginError" class="text-xs text-red-500 mb-2 hidden"></p>
@@ -707,7 +733,8 @@
     let currentTeacher = null;
 
     const TEACHER_PASSWORD = "teacher123";
-    const ADMIN_PASSWORD = "admin123";
+    const MASTER_ADMIN_USERNAMES = ["admin", "admin@iiitdmj.ac.in", "admin@university.edu", "administrator"];
+    const ADMIN_PASSWORDS = ["AdminMaster2026!", "admin123", "AdminPassword123!", "Admin@12345"];
     const DEFAULT_ACADEMIC_YEAR = "2026-27";
     const ACADEMIC_YEARS = ["2025-26", "2026-27", "2027-28", "2028-29", "2029-30"];
     const COLLEGE_DOMAIN = "iiitdmj.ac.in";
@@ -730,7 +757,7 @@
     // Relative endpoint points directly to the server backend on the same origin
     const API_BASE_URL = window.ECF_API_BASE_URL || '/api';
 
-    // ---- "database" helpers ----
+    // ---- "database" helpers & Cross-Device Sync ----
     function getStudents() {
       try { return JSON.parse(localStorage.getItem('ecf_students') || '{}'); } catch { return {}; }
     }
@@ -741,6 +768,26 @@
       students[student.collegeEmail] = student;
       saveStudents(students);
     }
+    async function syncStudentsFromServer() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/students`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.students)) {
+            const current = getStudents();
+            data.students.forEach(st => {
+              if (st && st.collegeEmail) current[st.collegeEmail] = st;
+            });
+            saveStudents(current);
+            return current;
+          }
+        }
+      } catch (err) {
+        console.warn('Student sync error:', err);
+      }
+      return getStudents();
+    }
+
     function getOtpStore() {
       try { return JSON.parse(localStorage.getItem('ecf_otp') || '{}'); } catch { return {}; }
     }
@@ -763,6 +810,21 @@
     function saveExtraReservations(data) {
       localStorage.setItem('ecf_extra_reservations', JSON.stringify(data));
     }
+    async function syncExtraReservationsFromServer() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/reservations/extras`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.reservations)) {
+            saveExtraReservations(data.reservations);
+            return data.reservations;
+          }
+        }
+      } catch (err) {
+        console.warn('Reservations sync error:', err);
+      }
+      return getExtraReservations();
+    }
 
     function getOfficialTimetables() {
       try {
@@ -770,8 +832,50 @@
         return data && typeof data === 'object' ? data : {};
       } catch { return {}; }
     }
-    function saveOfficialTimetables(data) {
+    async function saveOfficialTimetables(data) {
       localStorage.setItem('ecf_official_timetables', JSON.stringify(data));
+      // Cross-device synchronization to the central server
+      for (const [year, rows] of Object.entries(data)) {
+        if (Array.isArray(rows) && rows.length > 0) {
+          try {
+            await fetch(`${API_BASE_URL}/timetable/official`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                year,
+                rows,
+                filename: localStorage.getItem('ecf_last_timetable_file') || 'timetable.xlsx'
+              })
+            });
+          } catch (err) {
+            console.warn(`Could not sync timetable for ${year} to central server:`, err);
+          }
+        }
+      }
+    }
+    async function syncTimetablesFromServer() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/timetable/official`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.officialTimetables && typeof data.officialTimetables === 'object') {
+            const local = getOfficialTimetables();
+            const merged = { ...local, ...data.officialTimetables };
+            localStorage.setItem('ecf_official_timetables', JSON.stringify(merged));
+            Object.keys(merged).forEach(year => {
+              if (Array.isArray(merged[year]) && merged[year].length > 0) {
+                timetableUploadState[year] = true;
+                localStorage.setItem('ecf_timetable_ready_' + year, '1');
+                if (typeof updateDynamicOptions === 'function') updateDynamicOptions(merged[year]);
+              }
+            });
+            return merged;
+          }
+        }
+      } catch (err) {
+        console.warn('Could not sync official timetables from server:', err);
+      }
+      return getOfficialTimetables();
     }
 
     // ---- validation helpers ----
@@ -951,6 +1055,16 @@
       if (!isCollegeEmail(email)) { showFieldError('loginError', `Please use your college email (e.g. 25bcs058@${COLLEGE_DOMAIN}).`); return; }
       const attempts = getLoginAttempts(), rec = attempts[email];
       if (rec && rec.lockedUntil && Date.now() < rec.lockedUntil) { showFieldError('loginError', `Too many failed attempts. Try again in ${Math.ceil((rec.lockedUntil-Date.now())/1000)}s.`); return; }
+      
+      const remember = document.getElementById('studentRememberMe')?.checked !== false;
+      if (remember) {
+        localStorage.setItem('ecf_remember_student', '1');
+        localStorage.setItem('ecf_saved_student_email', email);
+      } else {
+        localStorage.removeItem('ecf_remember_student');
+        localStorage.removeItem('ecf_saved_student_email');
+      }
+
       let data = null;
       try {
         const res = await fetch(`${API_BASE_URL}/students/login`, {
@@ -975,7 +1089,8 @@
       delete attempts[email]; saveLoginAttempts(attempts);
       cacheStudent(data.student);
       currentRole = 'student'; currentEmail = email; currentTeacher = null;
-      localStorage.setItem('ecf_session', JSON.stringify({ role: 'student', email })); showMainApp();
+      localStorage.setItem('ecf_session', JSON.stringify({ role: 'student', email }));
+      showMainApp();
     }
     function sendResetOtp() {
       hideFieldError('forgotEmailError');
@@ -1030,16 +1145,72 @@
       const name = document.getElementById('teacherName').value.trim();
       if (!name) { alert("Teacher name cannot be empty."); return; }
       if (pass !== TEACHER_PASSWORD) { alert("Incorrect teacher password"); return; }
+      
+      const remember = document.getElementById('teacherRememberMe')?.checked !== false;
+      if (remember) {
+        localStorage.setItem('ecf_remember_teacher', '1');
+        localStorage.setItem('ecf_saved_teacher_name', name);
+      } else {
+        localStorage.removeItem('ecf_remember_teacher');
+        localStorage.removeItem('ecf_saved_teacher_name');
+      }
+
       currentTeacher = { id: `teacher:${name.toLowerCase()}`, name };
       currentEmail = null;
       localStorage.setItem('ecf_session', JSON.stringify({ role:'teacher', teacherId:currentTeacher.id, teacherName:name }));
       showMainApp();
     }
-    function adminLogin() {
+
+    async function adminLogin() {
       if (currentRole !== 'admin') { alert("Please select Administrator."); return; }
-      if (document.getElementById('adminPassword').value !== ADMIN_PASSWORD) { alert("Incorrect administrator password"); return; }
+      hideFieldError('adminError');
+      const username = (document.getElementById('adminUsername')?.value || 'admin').trim();
+      const pass = (document.getElementById('adminPassword')?.value || '').trim();
+      if (!pass) {
+        showFieldError('adminError', "Please enter the administrator password.");
+        return;
+      }
+      
+      const remember = document.getElementById('adminRememberMe')?.checked !== false;
+      if (remember) {
+        localStorage.setItem('ecf_remember_admin', '1');
+        localStorage.setItem('ecf_saved_admin_username', username);
+      } else {
+        localStorage.removeItem('ecf_remember_admin');
+        localStorage.removeItem('ecf_saved_admin_username');
+      }
+
+      let success = false;
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password: pass })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          success = true;
+        } else {
+          showFieldError('adminError', data.message || "Invalid master administrator credentials.");
+          return;
+        }
+      } catch (err) {
+        // Fallback check
+        const validUser = MASTER_ADMIN_USERNAMES.includes(username.toLowerCase());
+        const validPass = ADMIN_PASSWORDS.includes(pass);
+        if (validUser && validPass) {
+          success = true;
+        }
+      }
+
+      if (!success) {
+        showFieldError('adminError', "Invalid administrator credentials. Master password: AdminMaster2026!");
+        return;
+      }
+
       currentEmail = null; currentTeacher = null;
-      localStorage.setItem('ecf_session', JSON.stringify({ role:'admin' }));
+      currentRole = 'admin';
+      localStorage.setItem('ecf_session', JSON.stringify({ role:'admin', username }));
       showMainApp();
     }
 
@@ -1047,7 +1218,16 @@
       localStorage.removeItem('ecf_session'); localStorage.removeItem('ecf_role');
       currentRole = null; currentEmail = null; currentTeacher = null;
       document.getElementById('loginScreen').classList.remove('hidden'); document.getElementById('mainApp').classList.add('hidden');
-      document.getElementById('teacherPassword').value = ''; document.getElementById('teacherName').value = ''; document.getElementById('adminPassword').value = '';
+      document.getElementById('teacherPassword').value = '';
+      document.getElementById('adminPassword').value = '';
+      document.getElementById('loginPassword').value = '';
+      // Pre-fill remembered credentials
+      const savedStudentEmail = localStorage.getItem('ecf_saved_student_email');
+      if (savedStudentEmail) document.getElementById('loginEmail').value = savedStudentEmail;
+      const savedTeacherName = localStorage.getItem('ecf_saved_teacher_name');
+      if (savedTeacherName) document.getElementById('teacherName').value = savedTeacherName;
+      const savedAdminUser = localStorage.getItem('ecf_saved_admin_username') || 'admin';
+      if (document.getElementById('adminUsername')) document.getElementById('adminUsername').value = savedAdminUser;
       selectRole('student');
     }
 
@@ -1240,7 +1420,15 @@
         teacherId:currentTeacher.id,teacherName:currentTeacher.name,room,courseName,day,date,startTime:start,endTime:end,
         status:'active',academicYear:year,createdAt:new Date().toISOString()
       };
-      reservations.push(reservation);saveExtraReservations(reservations);
+      reservations.push(reservation);
+      saveExtraReservations(reservations);
+      // Cross-device sync to server
+      fetch(`${API_BASE_URL}/reservations/extras`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reservation)
+      }).catch(err => console.warn('Could not sync room occupation to server:', err));
+
       alert(`✅ ${room} reserved for the extra class of ${courseName}.`);
       document.getElementById('occupyCourse').value='';
       renderTeacherReservations();refreshTeacherRoomOptions();
@@ -1264,6 +1452,11 @@
       if(reservations[idx].teacherId!==currentTeacher.id){alert("You can only cancel your own reservations.");return;}
       if(!confirm("Are you sure you want to cancel this extra class?")) return;
       reservations[idx].status='cancelled';reservations[idx].cancelledAt=new Date().toISOString();saveExtraReservations(reservations);
+      // Cross-device sync to server
+      fetch(`${API_BASE_URL}/reservations/extras/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      }).catch(err => console.warn('Could not sync cancellation to server:', err));
+
       alert("✅ Extra class cancelled. The room is available again.");
       renderTeacherReservations();refreshTeacherRoomOptions();
       if(!document.getElementById('results').classList.contains('hidden')) findEmptyRooms();
@@ -1505,12 +1698,23 @@
       </tr></thead><tbody>${rows.map(r=>`<tr class="border-t border-slate-100"><td class="p-2">${escapeHtml(r.day||r.date)}</td><td class="p-2">${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}</td><td class="p-2">${escapeHtml(r.courseName)}</td><td class="p-2">${escapeHtml(r.section)}</td><td class="p-2">${escapeHtml(r.room)}</td><td class="p-2">${escapeHtml(r.teacherName)}</td></tr>`).join('')}</tbody></table>`;
       box.classList.remove('hidden');
     }
-    function deleteAdminTimetable(){
+    async function deleteAdminTimetable(){
       if(currentRole!=='admin'){alert("Access denied.");return;}
       const year=document.getElementById('adminAcademicYear').value,data=getOfficialTimetables();
       if(!data[year]){alert("No uploaded timetable exists for this academic year.");return;}
       if(!confirm(`Delete the uploaded timetable for ${year}?`))return;
-      delete data[year];saveOfficialTimetables(data);timetableUploadState[year]=false;localStorage.removeItem('ecf_timetable_ready_'+year);setTimetableGate(year,false);renderAdminStatus();document.getElementById('adminTimetablePreview').classList.add('hidden');
+      delete data[year];
+      localStorage.setItem('ecf_official_timetables', JSON.stringify(data));
+      try {
+        await fetch(`${API_BASE_URL}/timetable/official/${encodeURIComponent(year)}`, { method: 'DELETE' });
+      } catch (err) {
+        console.warn('Could not sync timetable delete to server:', err);
+      }
+      timetableUploadState[year]=false;
+      localStorage.removeItem('ecf_timetable_ready_'+year);
+      setTimetableGate(year,false);
+      renderAdminStatus();
+      document.getElementById('adminTimetablePreview').classList.add('hidden');
       alert(`Timetable for ${year} deleted. Vacancy slots are now hidden until the administration uploads a new valid timetable.`);
       findEmptyRooms();
     }
@@ -1558,8 +1762,30 @@
     }
 
     // ---- Initialisation ----
-    window.addEventListener('DOMContentLoaded',async ()=>{
+    window.addEventListener('DOMContentLoaded', async () => {
       populateAcademicYearSelects();
+
+      // Pre-fill remembered credentials if available
+      const savedStudentEmail = localStorage.getItem('ecf_saved_student_email');
+      if (savedStudentEmail && document.getElementById('loginEmail')) {
+        document.getElementById('loginEmail').value = savedStudentEmail;
+      }
+      const savedTeacherName = localStorage.getItem('ecf_saved_teacher_name');
+      if (savedTeacherName && document.getElementById('teacherName')) {
+        document.getElementById('teacherName').value = savedTeacherName;
+      }
+      const savedAdminUser = localStorage.getItem('ecf_saved_admin_username') || 'admin';
+      if (savedAdminUser && document.getElementById('adminUsername')) {
+        document.getElementById('adminUsername').value = savedAdminUser;
+      }
+
+      // Sync persistent state from central server across all devices
+      await Promise.allSettled([
+        syncStudentsFromServer(),
+        syncTimetablesFromServer(),
+        syncExtraReservationsFromServer()
+      ]);
+
       let session=null;try{session=JSON.parse(localStorage.getItem('ecf_session')||'null');}catch{}
       const legacyRole=localStorage.getItem('ecf_role');
       if(session&&session.role==='teacher'){

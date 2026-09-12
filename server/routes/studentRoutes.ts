@@ -17,6 +17,17 @@ function formatStudentResponse(user: any) {
   };
 }
 
+// GET /api/students - List all registered student profiles for cross-device synchronization
+router.get('/', async (req: Request, res: Response) => {
+  try {
+    const users = localDb.get('users') || [];
+    const students = users.filter((u: any) => u.role === 'student').map(formatStudentResponse);
+    return res.json({ success: true, count: students.length, students });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: 'Server error retrieving students.' });
+  }
+});
+
 // POST /api/students/register
 router.post('/register', async (req: Request, res: Response) => {
   try {

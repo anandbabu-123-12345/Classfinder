@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { reservationRepo, classroomRepo, timetableRepo, auditLogRepo } from '../models/index.js';
 import { authenticate, requireRole, AuthRequest } from '../middleware/auth.js';
 import { areIntervalsOverlapping } from '../services/timeUtils.js';
+import { localDb } from '../config/db.js';
 
 const router = Router();
 
@@ -266,6 +267,54 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     });
 
     return res.json({ success: true, message: 'Reservation cancelled successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/reservations/extras - Cross-device teacher room occupations
+router.get('/extras', async (req, res) => {
+  try {
+    const list = localDb.get('extraReservations') || [];
+    return res.json({ success: true, count: list.length, reservations: list });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/reservations/extras - Record teacher room occupation
+router.post('/extras', async (req, res) => {
+  try {
+    const reservation = req.body;
+    if (!reservation || !reservation.room || !reservation.startTime || !reservation.endTime) {
+      return res.status(400).json({ success: false, message: 'room, startTime, and endTime are required.' });
+    }
+
+    const list = localDb.get('extraReservations') || [];
+    const id = reservation.id || 'res_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const newEntry = {
+      ...reservation,
+      id,
+      createdAt: reservation.createdAt || new Date().toISOString(),
+    };
+
+    list.unshift(newEntry);
+    localDb.set('extraReservations', list);
+
+    return res.json({ success: true, message: 'Classroom occupied successfully across all devices.', reservation: newEntry });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// DELETE /api/reservations/extras/:id - Free occupied room
+router.delete('/extras/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const list = localDb.get('extraReservations') || [];
+    const filtered = list.filter((r: any) => r.id !== id);
+    localDb.set('extraReservations', filtered);
+    return res.json({ success: true, message: 'Reservation released across all devices.' });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });
   }

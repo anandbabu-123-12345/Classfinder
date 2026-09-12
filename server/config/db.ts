@@ -12,6 +12,8 @@ export interface DatabaseState {
   reservations: any[];
   otps: any[];
   auditLogs: any[];
+  officialTimetables?: Record<string, any[]>;
+  extraReservations?: any[];
 }
 
 const defaultState: DatabaseState = {
@@ -21,6 +23,8 @@ const defaultState: DatabaseState = {
   reservations: [],
   otps: [],
   auditLogs: [],
+  officialTimetables: {},
+  extraReservations: [],
 };
 
 class LocalDB {
@@ -59,7 +63,10 @@ class LocalDB {
   }
 
   public get<K extends keyof DatabaseState>(collection: K): DatabaseState[K] {
-    return this.data[collection] || [];
+    if (this.data[collection] !== undefined) {
+      return this.data[collection];
+    }
+    return (collection === 'officialTimetables' ? {} : []) as unknown as DatabaseState[K];
   }
 
   public set<K extends keyof DatabaseState>(collection: K, items: DatabaseState[K]) {
