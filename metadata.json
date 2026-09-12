@@ -1,0 +1,6 @@
+{
+  "name": "Empty Classroom Finder",
+  "description": "Full-stack university classroom management system with real-time vacancy detection, timetable upload, and role-based access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

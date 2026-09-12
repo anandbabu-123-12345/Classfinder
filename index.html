@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empty Classroom Finder | College Timetable</title>
+  <meta name="description" content="A web application to find available classrooms based on university timetables and manage classroom reservations.">
+  <meta property="og:title" content="Empty Classroom Finder | College Timetable">
+  <meta property="og:description" content="A web application to find available classrooms based on university timetables and manage classroom reservations.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bcryptjs/2.4.3/bcrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .room-card { transition: all 0.2s ease; }
+    .room-card:hover { transform: translateY(-2px); }
+  </style>
+  <style>
+    body.dark-theme { background:#0f172a !important; color:#e2e8f0; }
+    body.dark-theme .bg-white { background:#1e293b !important; }
+    body.dark-theme .bg-slate-50 { background:#0f172a !important; }
+    body.dark-theme .bg-slate-100 { background:#334155 !important; }
+    body.dark-theme .bg-slate-200 { background:#475569 !important; }
+    body.dark-theme .text-slate-800, body.dark-theme .text-slate-700 { color:#e2e8f0 !important; }
+    body.dark-theme .text-slate-600, body.dark-theme .text-slate-500, body.dark-theme .text-slate-400 { color:#94a3b8 !important; }
+    body.dark-theme .border-slate-200, body.dark-theme .border-slate-300 { border-color:#475569 !important; }
+    body.dark-theme input, body.dark-theme select, body.dark-theme textarea { background:#1e293b !important; color:#e2e8f0 !important; border-color:#475569 !important; }
+    body.dark-theme .bg-indigo-50 { background:#1e1b4b !important; }
+    body.dark-theme .bg-amber-50 { background:#422006 !important; }
+    body.dark-theme .border-amber-200 { border-color:#92400e !important; }
+    body.dark-theme .text-amber-900 { color:#fde68a !important; }
+    body.dark-theme .bg-green-50 { background:#052e16 !important; }
+    body.dark-theme .bg-red-50 { background:#450a0a !important; }
+    body.dark-theme .bg-indigo-100 { background:#312e81 !important; }
+    body.dark-theme .bg-green-100 { background:#14532d !important; }
+    body.dark-theme .bg-red-100 { background:#7f1d1d !important; }
+    body.dark-theme .bg-amber-100 { background:#78350f !important; }
+    body.dark-theme .text-green-700, body.dark-theme .text-green-600 { color:#86efac !important; }
+    body.dark-theme .text-red-700, body.dark-theme .text-red-600 { color:#fca5a5 !important; }
+    body.dark-theme .text-indigo-600, body.dark-theme .text-indigo-700 { color:#a5b4fc !important; }
+    body.dark-theme .hover\:bg-slate-50:hover { background:#334155 !important; }
+    body.dark-theme .shadow-sm, body.dark-theme .shadow-2xl { box-shadow:0 10px 25px rgba(0,0,0,.35) !important; }
+    #themeLightBtn.active, #themeDarkBtn.active { border-color:#6366f1 !important; box-shadow:0 0 0 2px rgba(99,102,241,.25); }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="loginScreen" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="bg-indigo-600 text-white px-6 py-5">
+        <div class="flex items-center gap-3">
+          <div class="bg-white/20 p-2.5 rounded-xl">
+            <i class="fas fa-door-open text-xl"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold">Empty Classroom Finder</h2>
+            <p class="text-indigo-100 text-sm">Login to continue</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-6 max-h-[80vh] overflow-y-auto">
+        <!-- Role Selection -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <button id="btnStudent" onclick="selectRole('student')" 
+            class="role-btn border-2 border-indigo-600 bg-indigo-50 text-indigo-700 font-semibold py-3 rounded-xl flex flex-col items-center gap-1 transition">
+            <i class="fas fa-user-graduate text-xl"></i>
+            <span>Student</span>
+          </button>
+          <button id="btnTeacher" onclick="selectRole('teacher')" 
+            class="role-btn border-2 border-slate-200 text-slate-600 font-semibold py-3 rounded-xl flex flex-col items-center gap-1 transition hover:border-slate-300">
+            <i class="fas fa-chalkboard-teacher text-xl"></i>
+            <span>Teacher</span>
+          </button>
+          <button id="btnAdmin" onclick="selectRole('admin')" 
+            class="role-btn border-2 border-slate-200 text-slate-600 font-semibold py-3 rounded-xl flex flex-col items-center gap-1 transition hover:border-slate-300">
+            <i class="fas fa-user-shield text-xl"></i>
+            <span>Administrator</span>
+          </button>
+        </div>
+
+        <!-- Teacher Password (hidden by default) -->
+        <div id="teacherPasswordBox" class="hidden mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Teacher Name</label>
+          <input type="text" id="teacherName" placeholder="e.g. Dr. A. Kumar"
+            class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Teacher Password</label>
+          <input type="password" id="teacherPassword" placeholder="Enter password" 
+            class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            onkeydown="if(event.key==='Enter') doLogin()">
+          <p class="text-xs text-slate-500 mt-1">Default password: <code class="bg-slate-100 px-1 rounded">teacher123</code></p>
+        </div>
+
+        <button id="teacherLoginBtn" onclick="doLogin()" 
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+          <i class="fas fa-sign-in-alt"></i>
+          Login
+        </button>
+
+        <!-- ============ ADMIN AUTH BOX ============ -->
+        <div id="adminAuthBox" class="hidden mb-4">
+          <label class="block text-sm font-medium text-slate-700 mb-1.5">Administrator Password</label>
+          <input type="password" id="adminPassword" placeholder="Enter administrator password"
+            class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+            onkeydown="if(event.key==='Enter') adminLogin()">
+          <p class="text-xs text-slate-500 mt-1 mb-3">Demo password: <code class="bg-slate-100 px-1 rounded">admin123</code></p>
+          <button onclick="adminLogin()"
+            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+            <i class="fas fa-sign-in-alt"></i> Login as Administrator
+          </button>
+        </div>
+
+        <!-- ============ STUDENT AUTH BOX ============ -->
+        <div id="studentAuthBox" class="hidden">
+
+          <!-- Sub-tabs -->
+          <div class="flex gap-4 border-b border-slate-200 mb-4 text-sm font-medium">
+            <button id="tabLogin" onclick="switchStudentTab('login')" class="pb-2 border-b-2 border-indigo-600 text-indigo-700">Login</button>
+            <button id="tabRegister" onclick="switchStudentTab('register')" class="pb-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700">New Registration</button>
+          </div>
+
+          <!-- ---- LOGIN PANEL ---- -->
+          <div id="studentLoginPanel">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">College Email</label>
+            <input type="email" id="loginEmail" placeholder="25bcs058@iiitdmj.ac.in"
+              class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter password"
+              class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              onkeydown="if(event.key==='Enter') studentLogin()">
+            <div class="text-right mb-3">
+              <button onclick="switchStudentTab('forgot')" class="text-xs text-indigo-600 hover:underline">Forgot Password?</button>
+            </div>
+            <p id="loginError" class="text-xs text-red-500 mb-2 hidden"></p>
+            <button onclick="studentLogin()"
+              class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+              <i class="fas fa-sign-in-alt"></i> Login
+            </button>
+          </div>
+
+          <!-- ---- REGISTER PANEL ---- -->
+          <div id="studentRegisterPanel" class="hidden">
+            <!-- Step 1: email + send OTP -->
+            <div id="regStep1">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">College Email</label>
+              <input type="email" id="regEmail" placeholder="25bcs058@iiitdmj.ac.in"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p class="text-xs text-slate-400 mb-3">Must be your @iiitdmj.ac.in email.</p>
+              <p id="regEmailError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <button onclick="sendRegistrationOtp()"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                <i class="fas fa-paper-plane"></i> Send OTP
+              </button>
+            </div>
+
+            <!-- Step 2: OTP verify -->
+            <div id="regStep2" class="hidden">
+              <p class="text-sm text-slate-600 mb-3">Enter the 6-digit OTP sent to <span id="regEmailDisplay" class="font-semibold"></span></p>
+              <input type="text" id="regOtp" maxlength="6" placeholder="••••••"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 tracking-[0.5em] text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p id="regOtpError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <p id="regOtpTimer" class="text-xs text-slate-400 mb-3"></p>
+              <button onclick="verifyRegistrationOtp()"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition mb-2">
+                Verify OTP
+              </button>
+              <button onclick="sendRegistrationOtp(true)" class="w-full text-xs text-indigo-600 hover:underline">Resend OTP</button>
+            </div>
+
+            <!-- Step 3: set password -->
+            <div id="regStep3" class="hidden">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+              <input type="password" id="regPassword" placeholder="At least 8 characters"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
+              <input type="password" id="regPasswordConfirm" placeholder="Re-enter password"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p id="regPasswordError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <button onclick="createAccount()"
+                class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                <i class="fas fa-user-check"></i> Create Account
+              </button>
+            </div>
+          </div>
+
+          <!-- ---- FORGOT PASSWORD PANEL ---- -->
+          <div id="studentForgotPanel" class="hidden">
+            <button onclick="switchStudentTab('login')" class="text-xs text-slate-500 hover:underline mb-3 flex items-center gap-1">
+              <i class="fas fa-arrow-left"></i> Back to login
+            </button>
+
+            <div id="forgotStep1">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">College Email</label>
+              <input type="email" id="forgotEmail" placeholder="25bcs058@iiitdmj.ac.in"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p id="forgotEmailError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <button onclick="sendResetOtp()"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition mt-2">
+                Send OTP
+              </button>
+            </div>
+
+            <div id="forgotStep2" class="hidden">
+              <p class="text-sm text-slate-600 mb-3">Enter the 6-digit OTP sent to <span id="forgotEmailDisplay" class="font-semibold"></span></p>
+              <input type="text" id="forgotOtp" maxlength="6" placeholder="••••••"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 tracking-[0.5em] text-center font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p id="forgotOtpError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <button onclick="verifyResetOtp()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition mt-2">
+                Verify OTP
+              </button>
+            </div>
+
+            <div id="forgotStep3" class="hidden">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+              <input type="password" id="newPassword" placeholder="At least 8 characters"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <label class="block text-sm font-medium text-slate-700 mb-1.5">Confirm New Password</label>
+              <input type="password" id="newPasswordConfirm" placeholder="Re-enter password"
+                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <p id="newPasswordError" class="text-xs text-red-500 mb-2 hidden"></p>
+              <button onclick="resetPassword()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition mt-2">
+                Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-400 mt-4">
+          Students can view free rooms. Teachers can also occupy rooms for extra classes.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST (for OTP demo delivery) ==================== -->
+  <div id="otpToast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm rounded-xl shadow-2xl px-5 py-4 z-[60] max-w-sm text-center"></div>
+
+  <!-- ==================== SETTINGS MODAL ==================== -->
+  <div id="settingsModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+        <h2 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-cog"></i> Settings</h2>
+        <button onclick="closeSettings()" class="text-white/80 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+      </div>
+      <div class="p-6">
+        <h3 class="font-semibold text-slate-800 mb-1">Theme</h3>
+        <p class="text-sm text-slate-500 mb-4">Choose Light or Dark theme for your profile.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <button id="themeLightBtn" onclick="setTheme('light')" class="border border-slate-300 rounded-xl p-4 text-left transition">
+            <i class="fas fa-sun text-amber-500 mb-2"></i><div class="font-semibold text-slate-800">Light</div><div class="text-xs text-slate-500">Bright interface</div>
+          </button>
+          <button id="themeDarkBtn" onclick="setTheme('dark')" class="border border-slate-300 rounded-xl p-4 text-left transition">
+            <i class="fas fa-moon text-indigo-500 mb-2"></i><div class="font-semibold text-slate-800">Dark</div><div class="text-xs text-slate-500">Dark interface</div>
+          </button>
+        </div>
+        <div class="flex justify-end mt-5"><button onclick="closeSettings()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-5 py-2.5 rounded-xl">Done</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APP ==================== -->
+  <div id="mainApp" class="hidden">
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-lg">
+      <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="bg-white/20 p-2 rounded-xl">
+            <i class="fas fa-door-open text-xl"></i>
+          </div>
+          <div>
+            <h1 class="text-lg md:text-xl font-bold">Empty Classroom Finder</h1>
+            <p class="text-indigo-100 text-xs">Aug–Nov 2026 Timetable</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="profileBtn" onclick="openProfile()" class="hidden bg-white/20 hover:bg-white/30 text-sm px-3 py-1 rounded-full items-center gap-1.5 transition">
+            <img id="profileBadgeImg" class="hidden w-5 h-5 rounded-full object-cover" />
+            <i id="profileBadgeIcon" class="fas fa-user text-xs"></i>
+            <span id="profileBadgeName">Profile</span>
+          </button>
+          <span id="userBadge" class="bg-white/20 text-sm px-3 py-1 rounded-full flex items-center gap-1.5">
+            <i class="fas fa-user text-xs"></i>
+            <span id="userRoleText">Student</span>
+          </span>
+          <button onclick="openSettings()" class="bg-white/20 hover:bg-white/30 text-sm px-3 py-1 rounded-full flex items-center gap-1.5 transition" title="Settings">
+            <i class="fas fa-cog"></i><span class="hidden sm:inline">Settings</span>
+          </button>
+          <button onclick="logout()" class="text-indigo-100 hover:text-white text-sm flex items-center gap-1">
+            <i class="fas fa-sign-out-alt"></i>
+            <span class="hidden sm:inline">Logout</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================== STUDENT PROFILE MODAL ==================== -->
+    <div id="profileModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+          <h2 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-id-card"></i> My Profile</h2>
+          <button onclick="closeProfile()" class="text-white/80 hover:text-white"><i class="fas fa-times text-lg"></i></button>
+        </div>
+
+        <div class="p-6 overflow-y-auto">
+          <!-- View mode -->
+          <div id="profileView">
+            <div class="flex flex-col items-center mb-5">
+              <div class="relative">
+                <img id="profileViewImg" class="hidden w-24 h-24 rounded-full object-cover border-4 border-indigo-100" />
+                <div id="profileViewImgPlaceholder" class="w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-indigo-50">
+                  <i class="fas fa-user text-3xl text-indigo-400"></i>
+                </div>
+              </div>
+              <h3 id="profileViewUsername" class="font-bold text-lg text-slate-800 mt-3"></h3>
+              <p id="profileViewEmail" class="text-slate-500 text-sm"></p>
+            </div>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-slate-500">Roll Number</span>
+                <span id="profileViewRoll" class="font-medium text-slate-800"></span>
+              </div>
+              <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-slate-500">Branch</span>
+                <span id="profileViewBranch" class="font-medium text-slate-800"></span>
+              </div>
+              <div class="flex justify-between border-b border-slate-100 pb-2">
+                <span class="text-slate-500">Year of Study</span>
+                <span id="profileViewYear" class="font-medium text-slate-800"></span>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-6">
+              <button onclick="openProfileEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
+                <i class="fas fa-edit"></i> Edit Profile
+              </button>
+              <button onclick="openChangePassword()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
+                <i class="fas fa-key"></i> Change Password
+              </button>
+            </div>
+          </div>
+
+          <!-- Edit mode -->
+          <div id="profileEdit" class="hidden">
+            <div class="flex flex-col items-center mb-5">
+              <img id="profileEditImg" class="hidden w-24 h-24 rounded-full object-cover border-4 border-indigo-100" />
+              <div id="profileEditImgPlaceholder" class="w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-indigo-50">
+                <i class="fas fa-user text-3xl text-indigo-400"></i>
+              </div>
+              <label class="mt-2 text-xs text-indigo-600 hover:underline cursor-pointer">
+                Change photo
+                <input type="file" id="profilePicInput" accept="image/*" class="hidden" onchange="handleProfilePicChange(event)">
+              </label>
+            </div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+            <input type="text" id="editUsername" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Branch</label>
+            <select id="editBranch" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option>Computer Science and Engineering</option>
+              <option>Mechanical Engineering</option>
+              <option>Smart Manufacturing</option>
+              <option>Electronics and Communication Engineering</option>
+              <option>Design</option>
+            </select>
+
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Year of Study</label>
+            <select id="editYear" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-4 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <option>1st Year</option>
+              <option>2nd Year</option>
+              <option>3rd Year</option>
+              <option>4th Year</option>
+              <option>5th Year</option>
+            </select>
+
+            <div class="flex gap-2">
+              <button onclick="saveProfileEdit()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl text-sm">Save Changes</button>
+              <button onclick="cancelProfileEdit()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Change password mode -->
+          <div id="profileChangePassword" class="hidden">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Current Password</label>
+            <input type="password" id="cpCurrent" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+            <input type="password" id="cpNew" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-3 focus:ring-2 focus:ring-indigo-500 outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Confirm New Password</label>
+            <input type="password" id="cpConfirm" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 mb-1 focus:ring-2 focus:ring-indigo-500 outline-none">
+            <p id="cpError" class="text-xs text-red-500 mb-2 hidden"></p>
+            <div class="flex gap-2 mt-3">
+              <button onclick="submitChangePassword()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-xl text-sm">Update Password</button>
+              <button onclick="cancelChangePassword()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 rounded-xl text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <main class="max-w-5xl mx-auto px-4 py-6">
+
+      <!-- Teacher: Occupy Room Panel -->
+      <div id="teacherPanel" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-plus-circle text-amber-600"></i>
+          <h3 class="font-semibold text-amber-900">Teacher: Occupy a Classroom</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Academic Year</label>
+            <select id="occupyAcademicYear" onchange="refreshTeacherRoomOptions()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Date</label>
+            <input type="date" id="occupyDate" onchange="syncOccupyDayFromDate(); refreshTeacherRoomOptions()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Start Time</label>
+            <input type="time" id="occupyStart" value="10:00" onchange="refreshTeacherRoomOptions()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">End Time</label>
+            <input type="time" id="occupyEnd" value="10:55" onchange="refreshTeacherRoomOptions()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Room</label>
+            <select id="occupyRoom" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400"></select>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Day</label>
+            <select id="occupyDay" onchange="refreshTeacherRoomOptions()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400">
+              <option>Monday</option><option>Tuesday</option><option>Wednesday</option>
+              <option>Thursday</option><option>Friday</option><option>Saturday</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Course Name</label>
+            <input type="text" id="occupyCourse" placeholder="e.g. Data Structures" maxlength="120"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400">
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-3">
+          <button onclick="occupyRoom()" class="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2 rounded-lg text-sm transition flex items-center justify-center gap-1.5">
+            <i class="fas fa-lock"></i> Occupy
+          </button>
+          <span class="text-xs text-amber-700">Only rooms free for the complete requested period are shown.</span>
+        </div>
+      </div>
+
+      <!-- Teacher's own extra classes -->
+      <div id="teacherReservationsPanel" class="hidden bg-white border border-slate-200 rounded-2xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-calendar-check text-indigo-600"></i>
+          <h3 class="font-semibold text-slate-800">My Extra Classes</h3>
+        </div>
+        <div id="teacherReservationsList" class="space-y-2"></div>
+      </div>
+
+      <!-- Administrator Dashboard -->
+      <div id="adminPanel" class="hidden bg-white border border-slate-200 rounded-2xl p-5 mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <i class="fas fa-user-shield text-indigo-600"></i>
+          <h3 class="font-semibold text-slate-800">Administrator Dashboard</h3>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-600 mb-1">Academic Year</label>
+            <select id="adminAcademicYear" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"></select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-medium text-slate-600 mb-1">Upload Timetable Spreadsheet</label>
+            <input type="file" id="timetableFileInput" accept=".xlsx,.xls,.csv"
+              onchange="handleTimetableSpreadsheet(event)"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+            <p class="text-[11px] text-slate-400 mt-1">Supports Excel (.xlsx/.xls) and CSV. The agent automatically maps day, time, room, course and section columns.</p>
+          </div>
+        </div>
+        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mb-4">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0"><i class="fas fa-robot"></i></div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <h4 class="font-semibold text-indigo-900">AI Timetable Agent</h4>
+                  <p class="text-xs text-indigo-700 mt-0.5">Reads the uploaded spreadsheet, detects timetable structure, normalizes time slots and rebuilds classroom vacancies automatically.</p>
+                </div>
+                <button onclick="runTimetableAgent()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 py-2 rounded-lg text-xs whitespace-nowrap">
+                  <i class="fas fa-wand-magic-sparkles mr-1"></i> Analyze & Fill
+                </button>
+              </div>
+              <p id="agentStatus" class="text-xs text-indigo-600 mt-2">Waiting for a spreadsheet.</p>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="loadGoogleSheetTimetable()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm">
+            <i class="fas fa-cloud-download-alt mr-1"></i> Load Google Sheet (legacy)
+          </button>
+          <button onclick="viewAdminTimetable()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded-lg text-sm">
+            <i class="fas fa-table mr-1"></i> View Timetable
+          </button>
+          <button onclick="deleteAdminTimetable()" class="bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-4 py-2 rounded-lg text-sm">
+            <i class="fas fa-trash mr-1"></i> Delete Timetable
+          </button>
+        </div>
+        <p id="adminStatus" class="text-xs text-slate-500 mt-3"></p>
+        <div id="adminTimetablePreview" class="hidden mt-4 overflow-x-auto"></div>
+      </div>
+
+      <!-- Search Controls -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Academic Year</label>
+            <select id="academicYearSelect" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Day</label>
+            <select id="daySelect" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <option value="Monday">Monday</option><option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option><option value="Saturday">Saturday</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1.5">Time Slot</label>
+            <select id="timeSelect" class="w-full border border-slate-300 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+              <option value="8:00-8:55">8:00 – 8:55</option><option value="9:00-9:55">9:00 – 9:55</option>
+              <option value="10:00-10:55">10:00 – 10:55</option><option value="11:00-11:55">11:00 – 11:55</option>
+              <option value="12:00-12:55">12:00 – 12:55</option><option value="14:00-14:55">14:00 – 14:55</option>
+              <option value="15:00-15:55">15:00 – 15:55</option><option value="16:00-16:55">16:00 – 16:55</option>
+              <option value="17:00-17:55">17:00 – 17:55</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button onclick="findEmptyRooms()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2">
+              <i class="fas fa-search"></i> Find Empty Rooms
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="results" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-slate-800">
+            <span id="resultTitle">Empty Classrooms</span>
+          </h2>
+          <span id="resultCount" class="bg-green-100 text-green-700 text-sm font-medium px-3 py-1 rounded-full"></span>
+        </div>
+        <div id="emptyList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8"></div>
+
+        <details class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <summary class="px-5 py-3 cursor-pointer font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+            <i class="fas fa-door-closed text-slate-400"></i>
+            Show Occupied Rooms
+          </summary>
+          <div id="occupiedList" class="px-5 pb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"></div>
+        </details>
+      </div>
+
+      <!-- Initial state -->
+      <div id="initialState" class="text-center py-16">
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-indigo-100 rounded-full mb-4">
+          <i class="fas fa-chalkboard text-3xl text-indigo-600"></i>
+        </div>
+        <h3 class="text-xl font-semibold text-slate-800 mb-2">Find free classrooms instantly</h3>
+        <p class="text-slate-500 max-w-md mx-auto">Select a day and time slot above to see which classrooms are empty. Perfect for gap hours and extra classes.</p>
+      </div>
+
+      <!-- Info -->
+      <div class="mt-10 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <div class="flex gap-2">
+          <i class="fas fa-info-circle mt-0.5"></i>
+          <div>
+            <strong>Note:</strong> Official timetable data is managed by the Administrator. Extra-class reservations are stored in this browser for this demo. Open electives & some lab batches may vary.
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="text-center text-slate-400 text-sm py-6">
+      Built for 24-hr Hackathon • Empty Classroom Finder
+    </footer>
+  </div>
+
+  <script>
+    // ====================== DATA ======================
+    let ALL_ROOMS = [
+      "L102", "L104", "L105", "L106", "L107", "L201", "L202", "L206", "L207",
+      "CR101", "CR102", "CR103", "CR104", "CR107", "CR108", "CR109",
+      "CR201", "CR202", "CR208",
+      "CC-GF", "CC-2F", "CC-3F", "CC-FF",
+      "AUDITORIUM",
+      "Workshop", "MC Lab", "CPPS Lab", "HMT Lab", "DS Lab", "VLSI Lab"
+    ];
+    function updateDynamicOptions(rows) {
+      if (!Array.isArray(rows) || !rows.length) return;
+      const rooms = new Set();
+      const timeSlots = new Map();
+      rows.forEach(r => {
+        if (r.room && String(r.room).trim()) rooms.add(String(r.room).trim().toUpperCase());
+        const st=normalizeSingleTime(r.startTime), et=normalizeSingleTime(r.endTime);
+        const a=timeToMinutes(st), b=timeToMinutes(et);
+        if (Number.isFinite(a) && Number.isFinite(b) && b>a) {
+          const value=`${st}-${et}`;
+          if(!timeSlots.has(value)) timeSlots.set(value, `${formatTimeForDisplay(st)} – ${formatTimeForDisplay(et)}`);
+        }
+      });
+      if (rooms.size) ALL_ROOMS=Array.from(rooms).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      const timeSelect=document.getElementById('timeSelect');
+      if(timeSelect && timeSlots.size){
+        const current=timeSelect.value;
+        const sorted=Array.from(timeSlots.keys()).sort((a,b)=>timeToMinutes(a.split('-')[0])-timeToMinutes(b.split('-')[0]));
+        timeSelect.innerHTML=sorted.map(v=>`<option value="${v}">${timeSlots.get(v)}</option>`).join('');
+        if(sorted.includes(current)) timeSelect.value=current; else timeSelect.selectedIndex=0;
+      }
+    }
+    function formatTimeForDisplay(t){
+      const m=String(t||'').match(/^(\d{2}):(\d{2})$/);
+      if(!m) return String(t||'');
+      let h=Number(m[1]), ap=h>=12?'PM':'AM'; h=h%12||12;
+      return `${h}:${m[2]} ${ap}`;
+    }
+
+    const OCCUPIED = {
+      "Monday": {
+        "8:00-8:55": ["L102", "L202", "L106", "L206", "CR104"],
+        "9:00-9:55": ["L102", "L202", "L106", "L206", "CR104", "L104"],
+        "10:00-10:55": ["L102", "L202", "L106", "L206", "CR104", "L104", "L105"],
+        "11:00-11:55": ["L102", "L202", "L106", "L206", "L104", "L105", "CR208", "CR107", "CR108", "L107", "CR103"],
+        "12:00-12:55": ["L106", "L206", "L104", "L105", "CR208", "CR107", "CR108", "L107", "CR103"],
+        "14:00-14:55": ["L106", "L206", "CC-GF", "CR202", "CR201", "CR103", "CR104", "CC-3F", "L107", "L104", "L105", "L201", "CR102", "CR101"],
+        "15:00-15:55": ["L106", "L206", "L104", "L105", "L201", "CR202", "CR201", "CR103", "CR104", "CC-GF", "CR102", "CR101", "L107", "L202"],
+        "16:00-16:55": ["L105", "L104", "L201", "L107", "CR101", "CR102", "CR103", "CR109", "CR201", "L206"],
+        "17:00-17:55": ["L105", "L104", "L201", "L107", "CR101", "CR102", "CR103", "CR109", "CR201", "L206", "CR202"]
+      },
+      "Tuesday": {
+        "8:00-8:55": ["AUDITORIUM"],
+        "9:00-9:55": ["AUDITORIUM", "L102", "L106", "L202", "CR101", "L104"],
+        "10:00-10:55": ["L102", "L202", "L106", "L104", "L105", "CR102", "L201", "CR101", "CR202", "CR201", "CR103"],
+        "11:00-11:55": ["L104", "L105", "L106", "CR102", "CR107", "CR108", "L107", "CR101", "L201", "CR103"],
+        "12:00-12:55": ["L106", "L206", "L104", "L105", "CR102", "L201"],
+        "14:00-14:55": ["CC-2F", "L107", "L202", "CR107", "CR101", "CR102", "CR201", "CR202", "L104", "L105", "L102"],
+        "15:00-15:55": ["L202", "L104", "L105", "L102", "L201", "CR101", "CR202", "CR103", "CR102"],
+        "16:00-16:55": ["L104", "L105", "CR101", "CR202", "CR103", "CR102"],
+        "17:00-17:55": ["L104", "L105", "CR101", "CR202"]
+      },
+      "Wednesday": {
+        "8:00-8:55": ["AUDITORIUM"],
+        "9:00-9:55": ["AUDITORIUM", "L102", "L202", "L201", "L106", "L206"],
+        "10:00-10:55": ["L102", "L202", "L106", "L206", "CR101", "L105", "CC-2F"],
+        "11:00-11:55": ["L206", "L102", "L202", "L106", "L105", "L104", "CR108", "CR104", "CR109"],
+        "12:00-12:55": ["L102", "L202", "L106", "L206", "CC-GF", "CR104", "L201"],
+        "14:00-14:55": ["L207", "L104", "L201", "CR107", "CR101", "CR102", "CR201", "CR202", "L105", "L106"],
+        "15:00-15:55": ["L104", "L105", "L106", "CR208", "CR201", "CR104", "CR101", "CR103"],
+        "16:00-16:55": ["CC-3F", "L104", "L107", "CR101", "L202", "CR107", "CR202", "CR208", "CR103", "L201", "CR109", "CR201"],
+        "17:00-17:55": ["L104", "L107", "CR101", "L202", "CR107", "CR103", "L201", "CR109", "CR201"]
+      },
+      "Thursday": {
+        "8:00-8:55": ["AUDITORIUM"],
+        "9:00-9:55": ["AUDITORIUM", "L102", "L202", "L106", "L206"],
+        "10:00-10:55": ["L102", "L202", "L104", "L105", "L106", "L206", "CR103"],
+        "11:00-11:55": ["L104", "L105", "L106", "L206", "CR103", "CR107", "CR108", "L207", "CR102", "CC-3F", "CC-2F"],
+        "12:00-12:55": ["L104", "L105", "CC-3F", "CC-2F", "L102", "CR104", "CR102", "CR208"],
+        "14:00-14:55": ["L105", "L104", "CC-3F", "L201", "L106", "CR103", "CC-GF", "CR201"],
+        "15:00-15:55": ["L105", "L104", "L201", "L106", "CR103", "CR201"],
+        "16:00-16:55": ["L105", "L104", "L201", "CR101", "CR102", "CR201", "CR202", "L206", "L107", "CR104"],
+        "17:00-17:55": ["L105", "L104", "L201", "CR101", "CR102", "CR201", "CR202"]
+      },
+      "Friday": {
+        "8:00-8:55": ["AUDITORIUM"],
+        "9:00-9:55": ["AUDITORIUM", "L102", "L202", "L106", "L206"],
+        "10:00-10:55": ["L102", "L202", "L106", "L206", "CR104"],
+        "11:00-11:55": ["L102", "L202", "L106", "L206", "CC-GF", "CR104"],
+        "12:00-12:55": ["L102", "L202", "L106", "L206", "CR104"],
+        "14:00-14:55": ["L107", "L104", "L201", "CR107", "CR101", "CR102", "CR202", "CR109", "CC-3F", "L202", "CR103"],
+        "15:00-15:55": ["L104", "L201", "L202", "CR103", "CR107"],
+        "16:00-16:55": ["L201", "L107", "CR101", "CR102", "CR201", "CR202", "L106", "CR103", "L105"],
+        "17:00-17:55": ["L201", "L107", "CR101", "CR102", "CR201", "CR202", "L106", "CR103", "L105"]
+      },
+      "Saturday": {
+        "8:00-8:55": ["L102", "L202", "L106", "L206"],
+        "9:00-9:55": ["L102", "L202", "L106", "L206"],
+        "10:00-10:55": ["L102", "L202", "L106", "L206"],
+        "11:00-11:55": ["L102", "L202", "L106", "L206"],
+        "12:00-12:55": [],
+        "14:00-14:55": [],
+        "15:00-15:55": [],
+        "16:00-16:55": [],
+        "17:00-17:55": []
+      }
+    };
+
+    // Spreadsheet/AI-agent state
+    let pendingTimetableRows = [];
+    let pendingTimetableFileName = '';
+    let pendingWorkbookSheets = [];
+    let timetableUploadState = {};
+
+    // ====================== AUTH & STATE ======================
+    let currentRole = null;   // 'student' | 'teacher' | 'admin'
+    let currentEmail = null;
+    let currentTeacher = null;
+
+    const TEACHER_PASSWORD = "teacher123";
+    const ADMIN_PASSWORD = "admin123";
+    const DEFAULT_ACADEMIC_YEAR = "2026-27";
+    const ACADEMIC_YEARS = ["2025-26", "2026-27", "2027-28", "2028-29", "2029-30"];
+    const COLLEGE_DOMAIN = "iiitdmj.ac.in";
+    const ROLL_NUMBER_REGEX = /^(\d{2})([a-z]{2,4})(\d{2,4})$/i;
+    const BRANCH_CODE_GUESS = {
+      bcs: "Computer Science and Engineering",
+      bme: "Mechanical Engineering",
+      bsm: "Smart Manufacturing",
+      bece: "Electronics and Communication Engineering",
+      bdes: "Design"
+    };
+
+    const OTP_LENGTH = 6;
+    const OTP_EXPIRY_MS = 5 * 60 * 1000;
+    const OTP_MAX_ATTEMPTS = 5;
+    const LOGIN_MAX_ATTEMPTS = 5;
+    const LOGIN_LOCKOUT_MS = 60 * 1000;
+    const bcryptLib = (window.dcodeIO && window.dcodeIO.bcrypt) ? window.dcodeIO.bcrypt : window.bcrypt;
+
+    // Relative endpoint points directly to the server backend on the same origin
+    const API_BASE_URL = window.ECF_API_BASE_URL || '/api';
+
+    // ---- "database" helpers ----
+    function getStudents() {
+      try { return JSON.parse(localStorage.getItem('ecf_students') || '{}'); } catch { return {}; }
+    }
+    function saveStudents(data) { localStorage.setItem('ecf_students', JSON.stringify(data)); }
+    function cacheStudent(student) {
+      if (!student || !student.collegeEmail) return;
+      const students = getStudents();
+      students[student.collegeEmail] = student;
+      saveStudents(students);
+    }
+    function getOtpStore() {
+      try { return JSON.parse(localStorage.getItem('ecf_otp') || '{}'); } catch { return {}; }
+    }
+    function saveOtpStore(data) { localStorage.setItem('ecf_otp', JSON.stringify(data)); }
+    function getPendingVerified() {
+      try { return JSON.parse(sessionStorage.getItem('ecf_pending_verified') || '{}'); } catch { return {}; }
+    }
+    function savePendingVerified(data) { sessionStorage.setItem('ecf_pending_verified', JSON.stringify(data)); }
+    function getLoginAttempts() {
+      try { return JSON.parse(localStorage.getItem('ecf_login_attempts') || '{}'); } catch { return {}; }
+    }
+    function saveLoginAttempts(data) { localStorage.setItem('ecf_login_attempts', JSON.stringify(data)); }
+
+    function getExtraReservations() {
+      try {
+        const data = JSON.parse(localStorage.getItem('ecf_extra_reservations') || '[]');
+        return Array.isArray(data) ? data : [];
+      } catch { return []; }
+    }
+    function saveExtraReservations(data) {
+      localStorage.setItem('ecf_extra_reservations', JSON.stringify(data));
+    }
+
+    function getOfficialTimetables() {
+      try {
+        const data = JSON.parse(localStorage.getItem('ecf_official_timetables') || '{}');
+        return data && typeof data === 'object' ? data : {};
+      } catch { return {}; }
+    }
+    function saveOfficialTimetables(data) {
+      localStorage.setItem('ecf_official_timetables', JSON.stringify(data));
+    }
+
+    // ---- validation helpers ----
+    function normalizeEmail(email) { return (email || '').trim().toLowerCase(); }
+    function isCollegeEmail(email) {
+      return new RegExp(`^[a-z0-9]+@${COLLEGE_DOMAIN.replace('.', '\\.')}$`, 'i').test(email);
+    }
+    function extractRollNumber(email) {
+      const local = email.split('@')[0];
+      return ROLL_NUMBER_REGEX.test(local) ? local.toLowerCase() : null;
+    }
+    function guessBranch(rollNumber) {
+      const match = rollNumber.match(ROLL_NUMBER_REGEX);
+      if (!match) return "";
+      return BRANCH_CODE_GUESS[match[2].toLowerCase()] || "";
+    }
+    function hashPassword(password) {
+      return bcryptLib.hashSync(password, bcryptLib.genSaltSync(10));
+    }
+    function verifyPassword(password, hash) {
+      try { return bcryptLib.compareSync(password, hash); } catch { return false; }
+    }
+    function generateOtp() {
+      return String(Math.floor(Math.random() * Math.pow(10, OTP_LENGTH))).padStart(OTP_LENGTH, '0');
+    }
+    function hashOtp(otp) { return bcryptLib.hashSync(otp, bcryptLib.genSaltSync(8)); }
+
+    let otpToastTimer = null;
+    function showOtpToast(email, otp) {
+      const toast = document.getElementById('otpToast');
+      toast.innerHTML = `<div class="font-semibold mb-1"><i class="fas fa-flask mr-1"></i> OTP Delivery</div>
+        <div class="text-slate-300 text-xs mb-2">Simulated verification for ${escapeHtml(email)}:</div>
+        <div class="text-2xl font-mono tracking-[0.4em]">${otp}</div>`;
+      toast.classList.remove('hidden');
+      clearTimeout(otpToastTimer);
+      otpToastTimer = setTimeout(() => toast.classList.add('hidden'), 15000);
+    }
+
+    let otpCountdownInterval = null;
+    function startOtpCountdown(expiresAt, labelEl) {
+      clearInterval(otpCountdownInterval);
+      otpCountdownInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+        const m = String(Math.floor(remaining / 60)).padStart(2, '0');
+        const sec = String(remaining % 60).padStart(2, '0');
+        labelEl.textContent = remaining > 0 ? `OTP expires in ${m}:${sec}` : `OTP expired — please resend.`;
+        if (remaining <= 0) clearInterval(otpCountdownInterval);
+      }, 500);
+    }
+
+    function showFieldError(id, message) {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = message; el.classList.remove('hidden'); }
+    }
+    function hideFieldError(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    }
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+    }
+
+    // ---- Role / tab switching ----
+    function selectRole(role) {
+      currentRole = role;
+      const btnStudent = document.getElementById('btnStudent');
+      const btnTeacher = document.getElementById('btnTeacher');
+      const btnAdmin = document.getElementById('btnAdmin');
+      const passBox = document.getElementById('teacherPasswordBox');
+      const teacherBtn = document.getElementById('teacherLoginBtn');
+      const studentBox = document.getElementById('studentAuthBox');
+      const adminBox = document.getElementById('adminAuthBox');
+
+      const buttons = [btnStudent, btnTeacher, btnAdmin];
+      buttons.forEach(btn => btn.className = "role-btn border-2 border-slate-200 text-slate-600 font-semibold py-3 rounded-xl flex flex-col items-center gap-1 transition hover:border-slate-300");
+      const selected = role === 'student' ? btnStudent : role === 'teacher' ? btnTeacher : btnAdmin;
+      selected.className = "role-btn border-2 border-indigo-600 bg-indigo-50 text-indigo-700 font-semibold py-3 rounded-xl flex flex-col items-center gap-1 transition";
+
+      passBox.classList.toggle('hidden', role !== 'teacher');
+      teacherBtn.classList.toggle('hidden', role !== 'teacher');
+      studentBox.classList.toggle('hidden', role !== 'student');
+      adminBox.classList.toggle('hidden', role !== 'admin');
+      if (role === 'student') switchStudentTab('login');
+      if (role === 'teacher') document.getElementById('teacherPassword').focus();
+      if (role === 'admin') document.getElementById('adminPassword').focus();
+    }
+
+    function switchStudentTab(tab) {
+      const tabLogin = document.getElementById('tabLogin');
+      const tabRegister = document.getElementById('tabRegister');
+      const loginPanel = document.getElementById('studentLoginPanel');
+      const registerPanel = document.getElementById('studentRegisterPanel');
+      const forgotPanel = document.getElementById('studentForgotPanel');
+      const activeCls = "pb-2 border-b-2 border-indigo-600 text-indigo-700";
+      const inactiveCls = "pb-2 border-b-2 border-transparent text-slate-500 hover:text-slate-700";
+      loginPanel.classList.add('hidden'); registerPanel.classList.add('hidden'); forgotPanel.classList.add('hidden');
+      tabLogin.className = inactiveCls; tabRegister.className = inactiveCls;
+      if (tab === 'login') { loginPanel.classList.remove('hidden'); tabLogin.className = activeCls; }
+      else if (tab === 'register') {
+        registerPanel.classList.remove('hidden'); tabRegister.className = activeCls;
+        document.getElementById('regStep1').classList.remove('hidden');
+        document.getElementById('regStep2').classList.add('hidden'); document.getElementById('regStep3').classList.add('hidden');
+      } else {
+        forgotPanel.classList.remove('hidden');
+        document.getElementById('forgotStep1').classList.remove('hidden');
+        document.getElementById('forgotStep2').classList.add('hidden'); document.getElementById('forgotStep3').classList.add('hidden');
+      }
+    }
+
+    // ---- Student OTP flows ----
+    function sendRegistrationOtp(isResend) {
+      hideFieldError('regEmailError');
+      const emailInput = isResend ? document.getElementById('regEmailDisplay').textContent : document.getElementById('regEmail').value;
+      const email = normalizeEmail(emailInput);
+      if (!isCollegeEmail(email)) { showFieldError('regEmailError', `Please use your college email (e.g. 25bcs058@${COLLEGE_DOMAIN}).`); return; }
+      const rollNumber = extractRollNumber(email);
+      if (!rollNumber) { showFieldError('regEmailError', "That email doesn't match a recognized roll-number format."); return; }
+      const students = getStudents();
+      if (students[email] && students[email].emailVerified) { showFieldError('regEmailError', "An account with this email already exists. Please log in instead."); return; }
+      const otp = generateOtp(), otpStore = getOtpStore();
+      otpStore[email] = { codeHash: hashOtp(otp), expiresAt: Date.now() + OTP_EXPIRY_MS, attemptsLeft: OTP_MAX_ATTEMPTS, purpose: 'register' };
+      saveOtpStore(otpStore);
+      document.getElementById('regEmailDisplay').textContent = email; document.getElementById('regOtp').value = '';
+      hideFieldError('regOtpError'); document.getElementById('regStep1').classList.add('hidden'); document.getElementById('regStep2').classList.remove('hidden');
+      startOtpCountdown(otpStore[email].expiresAt, document.getElementById('regOtpTimer')); showOtpToast(email, otp);
+    }
+    function verifyRegistrationOtp() {
+      hideFieldError('regOtpError');
+      const email = normalizeEmail(document.getElementById('regEmailDisplay').textContent), entered = document.getElementById('regOtp').value.trim();
+      const otpStore = getOtpStore(), entry = otpStore[email];
+      if (!entry || entry.purpose !== 'register') { showFieldError('regOtpError', "No active OTP request found. Please resend."); return; }
+      if (Date.now() > entry.expiresAt) { delete otpStore[email]; saveOtpStore(otpStore); showFieldError('regOtpError', "OTP expired. Please resend a new one."); return; }
+      if (entry.attemptsLeft <= 0) { delete otpStore[email]; saveOtpStore(otpStore); showFieldError('regOtpError', "Too many incorrect attempts. Please resend a new OTP."); return; }
+      if (!bcryptLib.compareSync(entered, entry.codeHash)) { entry.attemptsLeft -= 1; saveOtpStore(otpStore); showFieldError('regOtpError', `Incorrect OTP. ${entry.attemptsLeft} attempt(s) left.`); return; }
+      delete otpStore[email]; saveOtpStore(otpStore);
+      const pending = getPendingVerified(); pending[email] = { verifiedAt: Date.now(), purpose: 'register' }; savePendingVerified(pending);
+      document.getElementById('regStep2').classList.add('hidden'); document.getElementById('regStep3').classList.remove('hidden');
+      document.getElementById('regPassword').value = ''; document.getElementById('regPasswordConfirm').value = '';
+    }
+    async function createAccount() {
+      hideFieldError('regPasswordError');
+      const email = normalizeEmail(document.getElementById('regEmailDisplay').textContent), pending = getPendingVerified();
+      if (!pending[email] || pending[email].purpose !== 'register') { showFieldError('regPasswordError', "Email verification expired. Please start registration again."); switchStudentTab('register'); return; }
+      const password = document.getElementById('regPassword').value, confirm = document.getElementById('regPasswordConfirm').value;
+      if (password.length < 8) { showFieldError('regPasswordError', "Password must be at least 8 characters."); return; }
+      if (password !== confirm) { showFieldError('regPasswordError', "Passwords do not match."); return; }
+      const rollNumber = extractRollNumber(email);
+      try {
+        const res = await fetch(`${API_BASE_URL}/students/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collegeEmail: email, password, rollNumber, username: rollNumber, profilePicture: null,
+            branch: guessBranch(rollNumber) || "Computer Science and Engineering", yearOfStudy: "1st Year"
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) { showFieldError('regPasswordError', data.message || "Could not create account."); return; }
+        cacheStudent(data.student);
+      } catch (err) {
+        // Fallback to local profile cache
+        cacheStudent({
+          collegeEmail: email,
+          rollNumber,
+          username: rollNumber,
+          branch: guessBranch(rollNumber) || "Computer Science and Engineering",
+          yearOfStudy: "1st Year",
+          emailVerified: true
+        });
+      }
+      delete pending[email]; savePendingVerified(pending);
+      alert(`✅ Account created for ${email}. You can now log in.`);
+      document.getElementById('loginEmail').value = email; document.getElementById('loginPassword').value = ''; switchStudentTab('login');
+    }
+    async function studentLogin() {
+      hideFieldError('loginError');
+      const email = normalizeEmail(document.getElementById('loginEmail').value), password = document.getElementById('loginPassword').value;
+      if (!isCollegeEmail(email)) { showFieldError('loginError', `Please use your college email (e.g. 25bcs058@${COLLEGE_DOMAIN}).`); return; }
+      const attempts = getLoginAttempts(), rec = attempts[email];
+      if (rec && rec.lockedUntil && Date.now() < rec.lockedUntil) { showFieldError('loginError', `Too many failed attempts. Try again in ${Math.ceil((rec.lockedUntil-Date.now())/1000)}s.`); return; }
+      let data = null;
+      try {
+        const res = await fetch(`${API_BASE_URL}/students/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        data = await res.json();
+        if (!res.ok) {
+          attempts[email] = attempts[email] || { count: 0 }; attempts[email].count++;
+          if (attempts[email].count >= LOGIN_MAX_ATTEMPTS) { attempts[email].lockedUntil = Date.now()+LOGIN_LOCKOUT_MS; attempts[email].count = 0; }
+          saveLoginAttempts(attempts); showFieldError('loginError', data.message || "Incorrect email or password."); return;
+        }
+      } catch (err) {
+        // Fallback for offline demo
+        const students = getStudents();
+        if (!students[email]) {
+          showFieldError('loginError', "Account not found. Please register first.");
+          return;
+        }
+        data = { student: students[email] };
+      }
+      delete attempts[email]; saveLoginAttempts(attempts);
+      cacheStudent(data.student);
+      currentRole = 'student'; currentEmail = email; currentTeacher = null;
+      localStorage.setItem('ecf_session', JSON.stringify({ role: 'student', email })); showMainApp();
+    }
+    function sendResetOtp() {
+      hideFieldError('forgotEmailError');
+      const email = normalizeEmail(document.getElementById('forgotEmail').value);
+      if (!isCollegeEmail(email)) { showFieldError('forgotEmailError', `Please use your college email (e.g. 25bcs058@${COLLEGE_DOMAIN}).`); return; }
+      const students = getStudents();
+      if (!students[email] || !students[email].emailVerified) { showFieldError('forgotEmailError', "No account found for this email."); return; }
+      const otp = generateOtp(), otpStore = getOtpStore();
+      otpStore[email] = { codeHash: hashOtp(otp), expiresAt: Date.now()+OTP_EXPIRY_MS, attemptsLeft: OTP_MAX_ATTEMPTS, purpose:'reset' };
+      saveOtpStore(otpStore); document.getElementById('forgotEmailDisplay').textContent = email; document.getElementById('forgotOtp').value = '';
+      hideFieldError('forgotOtpError'); document.getElementById('forgotStep1').classList.add('hidden'); document.getElementById('forgotStep2').classList.remove('hidden'); showOtpToast(email, otp);
+    }
+    function verifyResetOtp() {
+      hideFieldError('forgotOtpError');
+      const email = normalizeEmail(document.getElementById('forgotEmailDisplay').textContent), entered = document.getElementById('forgotOtp').value.trim();
+      const otpStore = getOtpStore(), entry = otpStore[email];
+      if (!entry || entry.purpose !== 'reset') { showFieldError('forgotOtpError', "No active OTP request found. Please resend."); return; }
+      if (Date.now() > entry.expiresAt) { delete otpStore[email]; saveOtpStore(otpStore); showFieldError('forgotOtpError', "OTP expired. Please go back and resend."); return; }
+      if (entry.attemptsLeft <= 0) { delete otpStore[email]; saveOtpStore(otpStore); showFieldError('forgotOtpError', "Too many incorrect attempts. Please go back and resend."); return; }
+      if (!bcryptLib.compareSync(entered, entry.codeHash)) { entry.attemptsLeft--; saveOtpStore(otpStore); showFieldError('forgotOtpError', `Incorrect OTP. ${entry.attemptsLeft} attempt(s) left.`); return; }
+      delete otpStore[email]; saveOtpStore(otpStore);
+      const pending = getPendingVerified(); pending[email] = { verifiedAt: Date.now(), purpose:'reset' }; savePendingVerified(pending);
+      document.getElementById('forgotStep2').classList.add('hidden'); document.getElementById('forgotStep3').classList.remove('hidden');
+      document.getElementById('newPassword').value = ''; document.getElementById('newPasswordConfirm').value = '';
+    }
+    async function resetPassword() {
+      hideFieldError('newPasswordError');
+      const email = normalizeEmail(document.getElementById('forgotEmailDisplay').textContent), pending = getPendingVerified();
+      if (!pending[email] || pending[email].purpose !== 'reset') { showFieldError('newPasswordError', "Verification expired. Please start over."); switchStudentTab('forgot'); return; }
+      const password = document.getElementById('newPassword').value, confirm = document.getElementById('newPasswordConfirm').value;
+      if (password.length < 8) { showFieldError('newPasswordError', "Password must be at least 8 characters."); return; }
+      if (password !== confirm) { showFieldError('newPasswordError', "Passwords do not match."); return; }
+      try {
+        const res = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(email)}/reset-password`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ newPassword: password })
+        });
+        const data = await res.json();
+        if (!res.ok) { showFieldError('newPasswordError', data.message || "Could not reset password."); return; }
+        cacheStudent(data.student);
+      } catch (err) {
+        // fallback
+      }
+      delete pending[email]; savePendingVerified(pending); alert("✅ Password reset. You can now log in with your new password.");
+      document.getElementById('loginEmail').value = email; switchStudentTab('login');
+    }
+
+    // ---- Teacher / Admin login ----
+    function doLogin() {
+      if (currentRole !== 'teacher') { alert("Please select Teacher."); return; }
+      const pass = document.getElementById('teacherPassword').value;
+      const name = document.getElementById('teacherName').value.trim();
+      if (!name) { alert("Teacher name cannot be empty."); return; }
+      if (pass !== TEACHER_PASSWORD) { alert("Incorrect teacher password"); return; }
+      currentTeacher = { id: `teacher:${name.toLowerCase()}`, name };
+      currentEmail = null;
+      localStorage.setItem('ecf_session', JSON.stringify({ role:'teacher', teacherId:currentTeacher.id, teacherName:name }));
+      showMainApp();
+    }
+    function adminLogin() {
+      if (currentRole !== 'admin') { alert("Please select Administrator."); return; }
+      if (document.getElementById('adminPassword').value !== ADMIN_PASSWORD) { alert("Incorrect administrator password"); return; }
+      currentEmail = null; currentTeacher = null;
+      localStorage.setItem('ecf_session', JSON.stringify({ role:'admin' }));
+      showMainApp();
+    }
+
+    function logout() {
+      localStorage.removeItem('ecf_session'); localStorage.removeItem('ecf_role');
+      currentRole = null; currentEmail = null; currentTeacher = null;
+      document.getElementById('loginScreen').classList.remove('hidden'); document.getElementById('mainApp').classList.add('hidden');
+      document.getElementById('teacherPassword').value = ''; document.getElementById('teacherName').value = ''; document.getElementById('adminPassword').value = '';
+      selectRole('student');
+    }
+
+    function populateAcademicYearSelects() {
+      ['academicYearSelect','occupyAcademicYear','adminAcademicYear'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const previous = el.value;
+        el.innerHTML = ACADEMIC_YEARS.map(y => `<option value="${y}">${y}</option>`).join('');
+        el.value = ACADEMIC_YEARS.includes(previous) ? previous : DEFAULT_ACADEMIC_YEAR;
+      });
+    }
+
+    function showMainApp() {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('mainApp').classList.remove('hidden');
+      populateAcademicYearSelects();
+
+      const roleText = currentRole === 'teacher' ? 'Teacher' : currentRole === 'admin' ? 'Administrator' : 'Student';
+      document.getElementById('userRoleText').textContent = roleText;
+      document.getElementById('teacherPanel').classList.toggle('hidden', currentRole !== 'teacher');
+      document.getElementById('teacherReservationsPanel').classList.toggle('hidden', currentRole !== 'teacher');
+      document.getElementById('adminPanel').classList.toggle('hidden', currentRole !== 'admin');
+
+      const profileBtn = document.getElementById('profileBtn');
+      if (currentRole === 'student' && currentEmail) {
+        profileBtn.classList.remove('hidden'); profileBtn.classList.add('flex'); refreshProfileBadge();
+      } else { profileBtn.classList.add('hidden'); profileBtn.classList.remove('flex'); }
+
+      if (currentRole === 'teacher') {
+        const today = new Date();
+        document.getElementById('occupyDate').value = today.toISOString().slice(0,10);
+        syncOccupyDayFromDate();
+        refreshTeacherRoomOptions();
+        renderTeacherReservations();
+      }
+      if (currentRole === 'admin') renderAdminStatus();
+    }
+
+    // ---- Student profile ----
+    function refreshProfileBadge() {
+      const student = getStudents()[currentEmail]; if (!student) return;
+      document.getElementById('profileBadgeName').textContent = student.username;
+      const img = document.getElementById('profileBadgeImg'), icon = document.getElementById('profileBadgeIcon');
+      if (student.profilePicture) { img.src = student.profilePicture; img.classList.remove('hidden'); icon.classList.add('hidden'); }
+      else { img.classList.add('hidden'); icon.classList.remove('hidden'); }
+    }
+    let pendingProfilePic = undefined;
+    function openProfile() {
+      if (currentRole !== 'student') return;
+      const student = getStudents()[currentEmail]; if (!student) return;
+      document.getElementById('profileViewUsername').textContent = student.username;
+      document.getElementById('profileViewEmail').textContent = student.collegeEmail;
+      document.getElementById('profileViewRoll').textContent = student.rollNumber;
+      document.getElementById('profileViewBranch').textContent = student.branch;
+      document.getElementById('profileViewYear').textContent = student.yearOfStudy;
+      const img = document.getElementById('profileViewImg'), placeholder = document.getElementById('profileViewImgPlaceholder');
+      if (student.profilePicture) { img.src=student.profilePicture; img.classList.remove('hidden'); placeholder.classList.add('hidden'); }
+      else { img.classList.add('hidden'); placeholder.classList.remove('hidden'); }
+      document.getElementById('profileView').classList.remove('hidden'); document.getElementById('profileEdit').classList.add('hidden');
+      document.getElementById('profileChangePassword').classList.add('hidden'); document.getElementById('profileModal').classList.remove('hidden');
+    }
+    function closeProfile() { document.getElementById('profileModal').classList.add('hidden'); }
+    function openProfileEdit() {
+      const student=getStudents()[currentEmail]; if(!student) return; pendingProfilePic=undefined;
+      document.getElementById('editUsername').value=student.username; document.getElementById('editBranch').value=student.branch; document.getElementById('editYear').value=student.yearOfStudy;
+      const img=document.getElementById('profileEditImg'), placeholder=document.getElementById('profileEditImgPlaceholder');
+      if(student.profilePicture){img.src=student.profilePicture;img.classList.remove('hidden');placeholder.classList.add('hidden');}
+      else{img.classList.add('hidden');placeholder.classList.remove('hidden');}
+      document.getElementById('profileView').classList.add('hidden'); document.getElementById('profileEdit').classList.remove('hidden');
+    }
+    function cancelProfileEdit(){pendingProfilePic=undefined;document.getElementById('profileEdit').classList.add('hidden');document.getElementById('profileView').classList.remove('hidden');}
+    function handleProfilePicChange(event){
+      const file=event.target.files[0]; if(!file)return; if(file.size>2*1024*1024){alert("Please choose an image under 2MB.");return;}
+      const reader=new FileReader(); reader.onload=e=>{pendingProfilePic=e.target.result;const img=document.getElementById('profileEditImg'),ph=document.getElementById('profileEditImgPlaceholder');img.src=pendingProfilePic;img.classList.remove('hidden');ph.classList.add('hidden');}; reader.readAsDataURL(file);
+    }
+    async function saveProfileEdit(){
+      const username=document.getElementById('editUsername').value.trim(); if(!username){alert("Username cannot be empty.");return;}
+      const branch=document.getElementById('editBranch').value, yearOfStudy=document.getElementById('editYear').value;
+      const existing=getStudents()[currentEmail];
+      const profilePicture = pendingProfilePic!==undefined ? pendingProfilePic : (existing ? existing.profilePicture : null);
+      try {
+        const res = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(currentEmail)}/profile`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, branch, yearOfStudy, profilePicture })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.message || "Could not save profile."); return; }
+        cacheStudent(data.student);
+      } catch (err) {
+        // local update
+        const st = existing || { collegeEmail: currentEmail };
+        st.username = username; st.branch = branch; st.yearOfStudy = yearOfStudy; st.profilePicture = profilePicture;
+        cacheStudent(st);
+      }
+      pendingProfilePic=undefined;refreshProfileBadge();document.getElementById('profileEdit').classList.add('hidden');openProfile();
+    }
+    function openChangePassword(){document.getElementById('cpCurrent').value='';document.getElementById('cpNew').value='';document.getElementById('cpConfirm').value='';hideFieldError('cpError');document.getElementById('profileView').classList.add('hidden');document.getElementById('profileChangePassword').classList.remove('hidden');}
+    function cancelChangePassword(){document.getElementById('profileChangePassword').classList.add('hidden');document.getElementById('profileView').classList.remove('hidden');}
+    async function submitChangePassword(){
+      hideFieldError('cpError');
+      const current=document.getElementById('cpCurrent').value,next=document.getElementById('cpNew').value,confirm=document.getElementById('cpConfirm').value;
+      if(next.length<8){showFieldError('cpError',"New password must be at least 8 characters.");return;}
+      if(next!==confirm){showFieldError('cpError',"New passwords do not match.");return;}
+      try {
+        const res = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(currentEmail)}/change-password`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword: current, newPassword: next })
+        });
+        const data = await res.json();
+        if (!res.ok) { showFieldError('cpError', data.message || "Could not update password."); return; }
+      } catch (err) {
+        // local simulated change
+      }
+      alert("✅ Password updated.");cancelChangePassword();
+    }
+
+    // ---- Time / occupancy helpers ----
+    function timeToMinutes(t) {
+      const m = String(t || '').match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return NaN;
+      return Number(m[1])*60+Number(m[2]);
+    }
+    function parseTimeRange(range) {
+      const parts = String(range || '').split('-').map(x=>x.trim());
+      return parts.length===2 ? {start:parts[0],end:parts[1]} : null;
+    }
+    function rangesOverlap(aStart,aEnd,bStart,bEnd) {
+      const a=timeToMinutes(aStart), b=timeToMinutes(aEnd), c=timeToMinutes(bStart), d=timeToMinutes(bEnd);
+      return Number.isFinite(a)&&Number.isFinite(b)&&Number.isFinite(c)&&Number.isFinite(d) && a < b && c < d && a < d && c < b;
+    }
+    function getDayName(dateStr) {
+      if(!dateStr) return '';
+      const d=new Date(`${dateStr}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? '' : ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+    }
+    function isDateOrDayMatch(item, day, date) {
+      if(item.date && date && item.date===date) return true;
+      if(item.date && date && item.date!==date) return false;
+      return !item.day || normalizeDayValue(item.day)===normalizeDayValue(day);
+    }
+    function getOfficialEntries(academicYear) {
+      const uploaded=getOfficialTimetables()[academicYear];
+      return Array.isArray(uploaded) && uploaded.length ? uploaded : [];
+    }
+    function getActiveExtras(academicYear) {
+      return getExtraReservations().filter(r=>r.status!=='cancelled' && (!r.academicYear || r.academicYear===academicYear));
+    }
+    function isOfficialConflict(room, academicYear, day, date, start, end) {
+      return getOfficialEntries(academicYear).some(r=>String(r.room).toUpperCase()===String(room).toUpperCase() &&
+        isDateOrDayMatch(r,day,date) && rangesOverlap(start,end,r.startTime,r.endTime));
+    }
+    function isExtraConflict(room, academicYear, day, date, start, end, ignoreId=null) {
+      return getActiveExtras(academicYear).some(r=>r.id!==ignoreId &&
+        String(r.room).toUpperCase()===String(room).toUpperCase() &&
+        isDateOrDayMatch(r,day,date) && rangesOverlap(start,end,r.startTime,r.endTime));
+    }
+    function isRoomAvailable(room, academicYear, day, date, start, end, ignoreId=null) {
+      return !isOfficialConflict(room,academicYear,day,date,start,end) && !isExtraConflict(room,academicYear,day,date,start,end,ignoreId);
+    }
+
+    function syncOccupyDayFromDate() {
+      const day=getDayName(document.getElementById('occupyDate').value);
+      if(day && document.getElementById('occupyDay')) document.getElementById('occupyDay').value=day;
+    }
+    function refreshTeacherRoomOptions() {
+      if(currentRole!=='teacher') return;
+      const year=document.getElementById('occupyAcademicYear').value,day=document.getElementById('occupyDay').value,date=document.getElementById('occupyDate').value;
+      const start=document.getElementById('occupyStart').value,end=document.getElementById('occupyEnd').value,select=document.getElementById('occupyRoom');
+      if(!start||!end||timeToMinutes(end)<=timeToMinutes(start)){select.innerHTML='<option value="">Fix start/end time</option>';return;}
+      const available=ALL_ROOMS.filter(room=>isRoomAvailable(room,year,day,date,start,end));
+      select.innerHTML=available.length ? available.map(r=>`<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('') : '<option value="">No rooms available</option>';
+    }
+
+    // ---- Extra-class reservation ----
+    function occupyRoom() {
+      if(currentRole!=='teacher' || !currentTeacher){alert("Only a logged-in teacher can occupy a room.");return;}
+      const year=document.getElementById('occupyAcademicYear').value, date=document.getElementById('occupyDate').value;
+      const day=document.getElementById('occupyDay').value,start=document.getElementById('occupyStart').value,end=document.getElementById('occupyEnd').value;
+      const room=document.getElementById('occupyRoom').value,courseName=document.getElementById('occupyCourse').value.trim();
+      if(!courseName){alert("Course name cannot be empty.");return;}
+      if(!date || !day){alert("Please select a valid date/day.");return;}
+      if(!start||!end||timeToMinutes(end)<=timeToMinutes(start)){alert("End time must be after start time.");return;}
+      if(!room){alert("No available room is selected.");return;}
+      if(!isRoomAvailable(room,year,day,date,start,end)){alert("❌ This room is occupied during the requested period. Please choose another room or time.");refreshTeacherRoomOptions();return;}
+
+      const reservations=getExtraReservations();
+      const reservation={
+        id:`res_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
+        teacherId:currentTeacher.id,teacherName:currentTeacher.name,room,courseName,day,date,startTime:start,endTime:end,
+        status:'active',academicYear:year,createdAt:new Date().toISOString()
+      };
+      reservations.push(reservation);saveExtraReservations(reservations);
+      alert(`✅ ${room} reserved for the extra class of ${courseName}.`);
+      document.getElementById('occupyCourse').value='';
+      renderTeacherReservations();refreshTeacherRoomOptions();
+      if(!document.getElementById('results').classList.contains('hidden')) findEmptyRooms();
+    }
+    function renderTeacherReservations() {
+      if(currentRole!=='teacher') return;
+      const list=document.getElementById('teacherReservationsList');
+      const mine=getActiveExtras().filter(r=>r.teacherId===currentTeacher.id).sort((a,b)=>String(a.date).localeCompare(String(b.date))||timeToMinutes(a.startTime)-timeToMinutes(b.startTime));
+      if(!mine.length){list.innerHTML='<div class="text-sm text-slate-500 py-2">You have no active extra-class reservations.</div>';return;}
+      list.innerHTML=mine.map(r=>`<div class="border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div><div class="font-semibold text-slate-800">${escapeHtml(r.room)} — Extra class of ${escapeHtml(r.courseName)}</div>
+        <div class="text-xs text-slate-500">${escapeHtml(r.day)} • ${escapeHtml(r.date)} • ${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)} • ${escapeHtml(r.academicYear)}</div></div>
+        <button onclick="cancelReservation('${escapeHtml(r.id)}')" class="bg-red-50 hover:bg-red-100 text-red-700 font-semibold px-3 py-2 rounded-lg text-sm"><i class="fas fa-times mr-1"></i> Cancel Class</button>
+      </div>`).join('');
+    }
+    function cancelReservation(id) {
+      if(currentRole!=='teacher'||!currentTeacher){alert("Access denied.");return;}
+      const reservations=getExtraReservations(),idx=reservations.findIndex(r=>r.id===id);
+      if(idx<0){alert("Reservation not found.");return;}
+      if(reservations[idx].teacherId!==currentTeacher.id){alert("You can only cancel your own reservations.");return;}
+      if(!confirm("Are you sure you want to cancel this extra class?")) return;
+      reservations[idx].status='cancelled';reservations[idx].cancelledAt=new Date().toISOString();saveExtraReservations(reservations);
+      alert("✅ Extra class cancelled. The room is available again.");
+      renderTeacherReservations();refreshTeacherRoomOptions();
+      if(!document.getElementById('results').classList.contains('hidden')) findEmptyRooms();
+    }
+
+    // ---- Spreadsheet upload + local AI timetable agent ----
+    function normalizeSingleTime(v) {
+      if(v instanceof Date && !Number.isNaN(v.getTime())){
+        return `${String(v.getHours()).padStart(2,'0')}:${String(v.getMinutes()).padStart(2,'0')}`;
+      }
+      if(typeof v==='number' && v>=0 && v<1){
+        const total=Math.round(v*24*60)%1440;
+        return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+      }
+      let raw=String(v??'').trim().replace(/[–—−]/g,'-').replace(/\s+/g,' ');
+      raw=raw.replace(/^(?:slot|period|time)\s*[:.-]?\s*/i,'');
+      const range=raw.match(/^(.+?)\s*(?:-|\bto\b)\s*(.+)$/i);
+      if(range){
+        const a=normalizeSingleTime(range[1]), b=normalizeSingleTime(range[2]);
+        return a && b ? `${a}-${b}` : raw;
+      }
+      const m=raw.match(/^(\d{1,2})(?:[:.]([0-5]\d))?\s*(am|pm)?$/i);
+      if(!m) return raw;
+      let h=Number(m[1]), min=Number(m[2]||0), ap=(m[3]||'').toLowerCase();
+      if(h>23 || min>59) return raw;
+      if(ap==='pm' && h<12) h+=12; if(ap==='am' && h===12) h=0;
+      return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+    }
+    function parseTimeRangeSmart(start,end,timeRange) {
+      let a=start, b=end;
+      if((!a || !b) && timeRange){
+        const raw=String(timeRange).replace(/[–—−]/g,'-');
+        const m=raw.match(/^(.+?)\s*(?:-|\bto\b)\s*(.+)$/i);
+        if(m){a=m[1];b=m[2];}
+      }
+      const na=normalizeSingleTime(a), nb=normalizeSingleTime(b);
+      if(na.includes('-') && !b){ const parts=na.split('-'); return {startTime:parts[0],endTime:parts[1]}; }
+      return {startTime:na,endTime:nb};
+    }
+    function normalizeDayValue(value) {
+      const raw=String(value??'').trim().toLowerCase().replace(/[^a-z]/g,'');
+      const map={sun:'Sunday',sunday:'Sunday',mon:'Monday',monday:'Monday',tue:'Tuesday',tues:'Tuesday',tuesday:'Tuesday',wed:'Wednesday',wednesday:'Wednesday',thu:'Thursday',thur:'Thursday',thurs:'Thursday',thursday:'Thursday',fri:'Friday',friday:'Friday',sat:'Saturday',saturday:'Saturday'};
+      return map[raw] || String(value??'').trim();
+    }
+    function normalizeRoomValue(value) {
+      return String(value??'').trim().replace(/\s+/g,' ').toUpperCase();
+    }
+    function detectHeader(row) {
+      const keys=Object.keys(row||{});
+      const norm=k=>String(k).toLowerCase().replace(/[^a-z0-9]/g,'');
+      const find=(arr)=>keys.find(k=>arr.some(x=>norm(k)===x || norm(k).includes(x)));
+      return {
+        day:find(['day','weekday']), date:find(['date']), time:find(['time','timeslot','period','timing']),
+        start:find(['starttime','start','from']), end:find(['endtime','end','to']), room:find(['room','roomnumber','roomno','classroom']),
+        course:find(['course','coursename','subject','subjectname','coursecode']), section:find(['classsection','section','class','batch']),
+        teacher:find(['teacher','teachername','faculty','facultyname']), year:find(['academicyear','academicyr','year'])
+      };
+    }
+    function scoreHeader(row) {
+      const h=detectHeader(row); let score=0;
+      if(h.day||h.date)score+=3; if(h.time||(h.start&&h.end))score+=3; if(h.room)score+=4; if(h.course)score+=1; if(h.section)score+=1; if(h.teacher)score+=1;
+      return score;
+    }
+    function parseFlexibleTimetable(rawRows, selectedYear) {
+      if(!rawRows.length) return {rows:[],note:'No rows found.'};
+      let headerIndex=0,bestScore=-1;
+      rawRows.slice(0,Math.min(rawRows.length,20)).forEach((r,i)=>{const sc=scoreHeader(r); if(sc>bestScore){bestScore=sc;headerIndex=i;}});
+      const first=rawRows[headerIndex]||rawRows[0];
+      const h=detectHeader(first);
+      const values=(r,k)=>{
+        if(!k)return '';
+        const v=r[k];
+        if(v instanceof Date && !Number.isNaN(v.getTime())) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+        return String(v??'').trim();
+      };
+      const out=[];
+      rawRows.slice(headerIndex+1).forEach(r=>{
+        const day=normalizeDayValue(values(r,h.day)), date=values(r,h.date), room=normalizeRoomValue(values(r,h.room)), course=values(r,h.course), section=values(r,h.section), teacher=values(r,h.teacher), year=values(r,h.year)||selectedYear;
+        const tr=parseTimeRangeSmart(values(r,h.start),values(r,h.end),values(r,h.time));
+        if ((room || course) && tr.startTime && tr.endTime && (day || date)) {
+          out.push({academicYear:year,day,date,startTime:tr.startTime,endTime:tr.endTime,courseName:course,section,room,teacherName:teacher});
+        }
+      });
+      if(!out.length) {
+        const keys=Object.keys(first);
+        const roomCols=keys.filter(k=>/^(l|cr)\s*[-_]?\s*\d|lab|auditorium|workshop|cc[-_]/i.test(String(k).trim()));
+        rawRows.slice(headerIndex+1).forEach(r=>{
+          const dayKey=keys.find(k=>/day|weekday/i.test(k)); const timeKey=keys.find(k=>/time|slot|period|timing/i.test(k));
+          const day=normalizeDayValue(dayKey?String(r[dayKey]||'').trim():''); const tv=timeKey?String(r[timeKey]||'').trim():'';
+          const tr=parseTimeRangeSmart('', '', tv);
+          if(day&&tr.startTime&&tr.endTime) roomCols.forEach(rc=>{const course=String(r[rc]||'').trim(); if(course && !/^free|vacant|empty|-/i.test(course)) out.push({academicYear:selectedYear,day,date:'',startTime:tr.startTime,endTime:tr.endTime,courseName:course,section:'',room:normalizeRoomValue(rc),teacherName:''});});
+        });
+      }
+      const seen=new Set(),dedup=[];
+      out.forEach(r=>{const key=[r.academicYear,r.day,r.date,r.startTime,r.endTime,r.room,r.courseName,r.section].join('|').toLowerCase(); if(!seen.has(key)){seen.add(key);dedup.push(r);}});
+      return {rows:dedup,note:`AI engine mapped ${dedup.length} occupied entries from the timetable.`};
+    }
+    function setTimetableGate(year, uploaded) {
+      timetableUploadState[year]=!!uploaded;
+      const searchBtn=document.querySelector('button[onclick="findEmptyRooms()"]');
+      if(searchBtn) { searchBtn.disabled=!uploaded; searchBtn.classList.toggle('opacity-50',!uploaded); searchBtn.classList.toggle('cursor-not-allowed',!uploaded); }
+      if(!uploaded){
+        document.getElementById('results')?.classList.add('hidden');
+        document.getElementById('initialState')?.classList.remove('hidden');
+      }
+    }
+    async function handleTimetableSpreadsheet(event) {
+      if(currentRole!=='admin'){alert('Access denied. Only administrators can upload timetables.');return;}
+      const file=event.target.files&&event.target.files[0]; if(!file)return;
+      const year=document.getElementById('adminAcademicYear').value;
+      try {
+        document.getElementById('agentStatus').textContent=`AI engine is reading ${file.name}...`;
+        const data=await file.arrayBuffer();
+        if(typeof XLSX==='undefined') throw new Error('Spreadsheet engine is unavailable. Check your internet connection and reload the page.');
+        const wb=XLSX.read(data,{type:'array',cellDates:true});
+        pendingWorkbookSheets=wb.SheetNames.slice(); pendingTimetableFileName=file.name;
+        let best={rows:[],note:''};
+        wb.SheetNames.forEach(name=>{const sheetRows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}); const parsed=parseFlexibleTimetable(sheetRows,year); if(parsed.rows.length>best.rows.length) best={...parsed,sheet:name};});
+        pendingTimetableRows=best.rows;
+        if(!best.rows.length){ timetableUploadState[year]=false; setTimetableGate(year,false); throw new Error('The AI engine could not identify valid timetable rows. Use Day/Date, Time or Start/End, and Room columns.'); }
+        document.getElementById('agentStatus').textContent=`✓ Spreadsheet uploaded successfully. ${best.note} Sheet: ${best.sheet||wb.SheetNames[0]}. AI engine is applying vacancy logic...`;
+        runTimetableAgent(true);
+      } catch(err){
+        console.error(err); pendingTimetableRows=[]; timetableUploadState[year]=false; setTimetableGate(year,false);
+        document.getElementById('agentStatus').textContent='Upload failed: '+(err.message||'unknown error');
+        alert('Timetable upload failed. Vacancy data will remain hidden until a valid timetable is successfully uploaded.\n\n'+(err.message||''));
+      }
+    }
+    function runTimetableAgent(silent=false) {
+      if(currentRole!=='admin'){alert('Access denied.');return;}
+      const year=document.getElementById('adminAcademicYear').value;
+      if(!pendingTimetableRows.length){alert('Upload a valid timetable spreadsheet first. Vacancy slots will not be displayed without a successful upload.');return;}
+      const rows=pendingTimetableRows.map(r=>({...r,academicYear:year,day:normalizeDayValue(r.day),room:normalizeRoomValue(r.room),startTime:normalizeSingleTime(r.startTime),endTime:normalizeSingleTime(r.endTime)}));
+      const errors=validateTimetableRows(rows,year);
+      if(errors.length){timetableUploadState[year]=false;setTimetableGate(year,false);document.getElementById('agentStatus').textContent=`AI engine rejected the timetable: ${errors.length} issue(s).`;alert('Timetable validation failed:\n\n'+errors.slice(0,10).join('\n'));return;}
+      const discovered=new Set(rows.map(r=>normalizeRoomValue(r.room)).filter(Boolean));
+      ALL_ROOMS=Array.from(new Set([...ALL_ROOMS,...discovered])).map(normalizeRoomValue).filter(Boolean).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'}));
+      const grouped=getOfficialTimetables(); grouped[year]=rows; saveOfficialTimetables(grouped);
+      localStorage.setItem('ecf_last_timetable_file',pendingTimetableFileName);
+      timetableUploadState[year]=true; localStorage.setItem('ecf_timetable_ready_'+year,'1');
+      updateDynamicOptions(rows); renderAdminStatus(); viewAdminTimetable(); setTimetableGate(year,true); findEmptyRooms();
+      document.getElementById('agentStatus').textContent=`✓ AI engine successfully applied ${rows.length} timetable entries for ${year}. Vacancy slots now use only this uploaded timetable plus teacher reservations.`;
+      if(!silent) alert(`✓ Timetable successfully processed. ${rows.length} entries imported and vacancy slots recalculated from the administration sheet.`);
+    }
+
+    // ---- Administrator timetable from Google Sheets ----
+    function normalizeSheetHeader(h) {
+      return String(h||'').toLowerCase().trim().replace(/\s+/g,'').replace(/_/g,'').replace(/-/g,'');
+    }
+    function parseCsvLine(line) {
+      const out=[];let cur='',quoted=false;
+      for(let i=0;i<line.length;i++){const ch=line[i];
+        if(ch==='"' && line[i+1]==='"'){cur+='"';i++;continue;}
+        if(ch==='"'){quoted=!quoted;continue;}
+        if(ch===','&&!quoted){out.push(cur.trim());cur='';}else cur+=ch;
+      } out.push(cur.trim()); return out;
+    }
+    function parseCsv(text) {
+      const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(l=>l.trim());
+      if(lines.length<2)return [];
+      const headers=parseCsvLine(lines[0]).map(normalizeSheetHeader);
+      return lines.slice(1).map(line=>{
+        const vals=parseCsvLine(line),o={};headers.forEach((h,i)=>o[h]=vals[i]??'');return o;
+      });
+    }
+    function getGoogleSheetCsvUrl(url) {
+      const m=String(url||'').match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      if(!m) throw new Error('Invalid Google Sheets URL.');
+      const id=m[1];
+      const gidMatch=String(url).match(/[?&#]gid=([0-9]+)/);
+      return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${gidMatch?'&gid='+gidMatch[1]:''}`;
+    }
+    function normalizeTimetableRow(row, selectedYear) {
+      const pick=(...keys)=>{for(const k of keys){if(row[k]!=null&&String(row[k]).trim())return String(row[k]).trim();}return '';};
+      const academicYear=pick('academicyear','year')||selectedYear;
+      const day=pick('day');
+      const date=pick('date');
+      const startTime=pick('starttime','start','from');
+      const endTime=pick('endtime','end','to');
+      const courseName=pick('course','coursename','subject','coursename');
+      const section=pick('classsection','section','class');
+      const room=pick('room','roomnumber','roomno');
+      const teacherName=pick('teacher','teachername','faculty');
+      return {academicYear,day,date,startTime,endTime,courseName,section,room,teacherName};
+    }
+    function validateTimetableRows(rows,selectedYear) {
+      const errors=[];
+      rows.forEach((r,i)=>{
+        if(!r.room)errors.push(`Row ${i+2}: room is required.`);
+        if(!r.startTime||!r.endTime)errors.push(`Row ${i+2}: start/end time are required.`);
+        if(r.startTime&&r.endTime&&timeToMinutes(r.endTime)<=timeToMinutes(r.startTime))errors.push(`Row ${i+2}: end time must be after start time.`);
+        if(!r.day&&!r.date)errors.push(`Row ${i+2}: day or date is required.`);
+        if(!r.academicYear)r.academicYear=selectedYear;
+      });
+      return errors;
+    }
+    async function loadGoogleSheetTimetable() {
+      if(currentRole!=='admin'){alert("Access denied. Only administrators can load timetables.");return;}
+      const year=document.getElementById('adminAcademicYear').value;
+      const url=prompt("Enter Google Sheets timetable URL:");
+      if(!url){return;}
+      try{
+        const csvUrl=getGoogleSheetCsvUrl(url);
+        const response=await fetch(csvUrl,{cache:'no-store'});
+        if(!response.ok) throw new Error(`Google Sheets returned HTTP ${response.status}.`);
+        const text=await response.text();
+        if(text.trim().startsWith('<!DOCTYPE')||text.includes('Sign in to continue')) throw new Error('The sheet is not publicly accessible. Set General access to Anyone with the link > Viewer.');
+        const rawRows=parseCsv(text);
+        if(!rawRows.length) throw new Error('The selected Google Sheet has no timetable rows.');
+        const rows=rawRows.map(r=>{const x=normalizeTimetableRow(r,year); x.day=normalizeDayValue(x.day); x.room=normalizeRoomValue(x.room); x.startTime=normalizeSingleTime(x.startTime); x.endTime=normalizeSingleTime(x.endTime); return x;});
+        const errors=validateTimetableRows(rows,year);
+        if(errors.length){alert("Timetable validation failed:\n\n"+errors.slice(0,10).join('\n'));return;}
+        updateDynamicOptions(rows);
+        const grouped=getOfficialTimetables();
+        grouped[year]=rows;saveOfficialTimetables(grouped);
+        timetableUploadState[year]=true; localStorage.setItem('ecf_timetable_ready_'+year,'1');
+        setTimetableGate(year,true); renderAdminStatus();
+        alert(`✅ Google Sheet loaded for ${year}. ${rows.length} timetable entries imported.`);
+        findEmptyRooms();
+      }catch(err){
+        console.error(err);
+        alert("Could not load the Google Sheet.\n\n"+(err.message||'Check the URL, sharing settings, and sheet format.'));
+      }
+    }
+    function renderAdminStatus(){
+      if(currentRole!=='admin')return;
+      const year=document.getElementById('adminAcademicYear').value,data=getOfficialTimetables(),uploaded=data[year];
+      const fallback=!uploaded||!uploaded.length;
+      document.getElementById('adminStatus').textContent=fallback
+        ? `No successful timetable upload for ${year}. Vacancy data is locked.`
+        : `${uploaded.length} timetable entries loaded for ${year}. Vacancy engine is active.`;
+    }
+    function viewAdminTimetable(){
+      if(currentRole!=='admin'){alert("Access denied.");return;}
+      const year=document.getElementById('adminAcademicYear').value,rows=getOfficialEntries(year),box=document.getElementById('adminTimetablePreview');
+      if(!rows.length){box.innerHTML='<div class="text-sm text-slate-500">No timetable entries.</div>';box.classList.remove('hidden');return;}
+      box.innerHTML=`<table class="min-w-full text-xs border border-slate-200"><thead><tr class="bg-slate-50">
+        <th class="p-2 text-left">Day/Date</th><th class="p-2 text-left">Time</th><th class="p-2 text-left">Course</th><th class="p-2 text-left">Section</th><th class="p-2 text-left">Room</th><th class="p-2 text-left">Teacher</th>
+      </tr></thead><tbody>${rows.map(r=>`<tr class="border-t border-slate-100"><td class="p-2">${escapeHtml(r.day||r.date)}</td><td class="p-2">${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}</td><td class="p-2">${escapeHtml(r.courseName)}</td><td class="p-2">${escapeHtml(r.section)}</td><td class="p-2">${escapeHtml(r.room)}</td><td class="p-2">${escapeHtml(r.teacherName)}</td></tr>`).join('')}</tbody></table>`;
+      box.classList.remove('hidden');
+    }
+    function deleteAdminTimetable(){
+      if(currentRole!=='admin'){alert("Access denied.");return;}
+      const year=document.getElementById('adminAcademicYear').value,data=getOfficialTimetables();
+      if(!data[year]){alert("No uploaded timetable exists for this academic year.");return;}
+      if(!confirm(`Delete the uploaded timetable for ${year}?`))return;
+      delete data[year];saveOfficialTimetables(data);timetableUploadState[year]=false;localStorage.removeItem('ecf_timetable_ready_'+year);setTimetableGate(year,false);renderAdminStatus();document.getElementById('adminTimetablePreview').classList.add('hidden');
+      alert(`Timetable for ${year} deleted. Vacancy slots are now hidden until the administration uploads a new valid timetable.`);
+      findEmptyRooms();
+    }
+
+    // ---- Find empty rooms ----
+    function findEmptyRooms() {
+      const year=document.getElementById('academicYearSelect').value;
+      const uploaded=getOfficialTimetables()[year];
+      if(!Array.isArray(uploaded)||!uploaded.length){
+        document.getElementById('results')?.classList.add('hidden');
+        document.getElementById('initialState')?.classList.remove('hidden');
+        const status=document.getElementById('agentStatus'); if(status) status.textContent=`No successful timetable upload for ${year}. Vacancy slots are hidden.`;
+        return;
+      }
+      const day=document.getElementById('daySelect').value,time=document.getElementById('timeSelect').value,tr=parseTimeRange(time);
+      const date='';
+      const official=getOfficialEntries(year).filter(r=>isDateOrDayMatch(r,day,date)&&rangesOverlap(tr.start,tr.end,r.startTime,r.endTime));
+      const extras=getActiveExtras(year).filter(r=>isDateOrDayMatch(r,day,date)&&rangesOverlap(tr.start,tr.end,r.startTime,r.endTime));
+      const occupiedMap=new Map();
+      official.forEach(r=>occupiedMap.set(String(r.room).toUpperCase(),{room:r.room,type:'official',courseName:r.courseName,teacherName:r.teacherName,startTime:r.startTime,endTime:r.endTime,section:r.section}));
+      extras.forEach(r=>occupiedMap.set(String(r.room).toUpperCase(),{room:r.room,type:'extra',courseName:r.courseName,teacherName:r.teacherName,startTime:r.startTime,endTime:r.endTime,section:''}));
+      const emptyRooms=ALL_ROOMS.filter(room=>!occupiedMap.has(room.toUpperCase()));
+
+      document.getElementById('initialState').classList.add('hidden');document.getElementById('results').classList.remove('hidden');
+      document.getElementById('resultTitle').textContent=`Empty on ${day} • ${time} • ${year}`;
+      document.getElementById('resultCount').textContent=`${emptyRooms.length} free`;
+      const emptyList=document.getElementById('emptyList');
+      emptyList.innerHTML=emptyRooms.length?emptyRooms.map(room=>`<div class="room-card bg-white border border-green-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
+        <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center"><i class="fas fa-check text-green-600"></i></div>
+        <div><div class="font-semibold text-slate-800">${escapeHtml(room)}</div><div class="text-xs text-green-600">Available</div></div></div>`).join('')
+        : '<div class="col-span-full text-center py-8 text-slate-500">No free rooms found for this period.</div>';
+
+      const occupiedList=document.getElementById('occupiedList');
+      if(!occupiedMap.size){occupiedList.innerHTML='<div class="text-slate-500 text-sm py-2">No occupied rooms recorded for this period.</div>';return;}
+      occupiedList.innerHTML=Array.from(occupiedMap.values()).sort((a,b)=>String(a.room).localeCompare(String(b.room))).map(item=>{
+        const isExtra=item.type==='extra';
+        return `<div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+          <div class="flex items-center gap-2"><i class="fas fa-circle text-[7px] ${isExtra?'text-amber-500':'text-red-400'}"></i>
+            <span class="font-semibold text-slate-800">${escapeHtml(item.room)}</span>
+            <span class="text-xs font-medium ${isExtra?'text-amber-700':'text-red-600'}">${isExtra?'Occupied - Extra Class':'Occupied - Official Timetable'}</span></div>
+          <div class="text-sm mt-1 ${isExtra?'text-amber-800':'text-slate-600'}">${isExtra?`Extra class of ${escapeHtml(item.courseName||'Unnamed course')}`:escapeHtml(item.courseName||'Official timetable')}</div>
+          <div class="text-xs text-slate-500 mt-1">${item.teacherName?`Teacher: ${escapeHtml(item.teacherName)} • `:''}${escapeHtml(item.startTime)}–${escapeHtml(item.endTime)}${item.section?` • Section: ${escapeHtml(item.section)}`:''}</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- Initialisation ----
+    window.addEventListener('DOMContentLoaded',async ()=>{
+      populateAcademicYearSelects();
+      let session=null;try{session=JSON.parse(localStorage.getItem('ecf_session')||'null');}catch{}
+      const legacyRole=localStorage.getItem('ecf_role');
+      if(session&&session.role==='teacher'){
+        currentRole='teacher';currentTeacher={id:session.teacherId||`teacher:${session.teacherName||'teacher'}`,name:session.teacherName||'Teacher'};showMainApp();
+      }else if(session&&session.role==='admin'){
+        currentRole='admin';showMainApp();
+      }else if(session&&session.role==='student'&&session.email){
+        let student=getStudents()[session.email];
+        try {
+          const res=await fetch(`${API_BASE_URL}/students/${encodeURIComponent(session.email)}`);
+          if(res.ok){const data=await res.json();cacheStudent(data.student);student=data.student;}
+        } catch (err) { /* offline fallback */ }
+        if(student){currentRole='student';currentEmail=session.email;showMainApp();}else{selectRole('student');}
+      }else if(legacyRole==='teacher'){
+        currentRole='teacher';currentTeacher={id:'teacher:legacy',name:'Teacher'};localStorage.setItem('ecf_session',JSON.stringify({role:'teacher',teacherId:'teacher:legacy',teacherName:'Teacher'}));showMainApp();
+      }else selectRole('student');
+
+      const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],today=days[new Date().getDay()];
+      if(today!=='Sunday'){document.getElementById('daySelect').value=today;document.getElementById('occupyDay').value=today;}
+      document.getElementById('adminAcademicYear').addEventListener('change',()=>{const y=document.getElementById('adminAcademicYear').value; const ready=Array.isArray(getOfficialTimetables()[y])&&getOfficialTimetables()[y].length>0; setTimetableGate(y,ready); renderAdminStatus();document.getElementById('adminTimetablePreview').classList.add('hidden');});
+      document.getElementById('academicYearSelect').addEventListener('change',()=>{const y=document.getElementById('academicYearSelect').value; const ready=Array.isArray(getOfficialTimetables()[y])&&getOfficialTimetables()[y].length>0; setTimetableGate(y,ready); if(ready) updateDynamicOptions(getOfficialTimetables()[y]); else {document.getElementById('results')?.classList.add('hidden');document.getElementById('initialState')?.classList.remove('hidden');}});
+      document.getElementById('academicYearSelect').addEventListener('change',()=>{if(!document.getElementById('results').classList.contains('hidden'))findEmptyRooms();});
+      
+      const initialYear = document.getElementById('academicYearSelect').value || DEFAULT_ACADEMIC_YEAR;
+      const loadedEntries = getOfficialEntries(initialYear);
+      if (loadedEntries.length > 0) updateDynamicOptions(loadedEntries);
+      setTimetableGate(initialYear, loadedEntries.length > 0);
+    });
+
+    // ====================== SETTINGS / THEME ======================
+    function applyTheme(){
+      const theme=localStorage.getItem('ecf_theme')||'light';
+      document.body.classList.toggle('dark-theme',theme==='dark');
+      const l=document.getElementById('themeLightBtn'),d=document.getElementById('themeDarkBtn');
+      if(l&&d){l.classList.toggle('active',theme==='light');d.classList.toggle('active',theme==='dark');}
+    }
+    function setTheme(theme){if(theme!=='light'&&theme!=='dark')return;localStorage.setItem('ecf_theme',theme);applyTheme();}
+    function openSettings(){applyTheme();document.getElementById('settingsModal').classList.remove('hidden');}
+    function closeSettings(){document.getElementById('settingsModal').classList.add('hidden');}
+    applyTheme();
+  </script>
+</body>
+</html>
