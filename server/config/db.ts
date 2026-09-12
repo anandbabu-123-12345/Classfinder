@@ -2,8 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const BASE_DATA_DIR = isServerless ? path.join('/tmp', 'ecf_data') : path.join(process.cwd(), 'data');
+const DB_FILE = path.join(BASE_DATA_DIR, 'db.json');
+const BUNDLED_DB_FILE = path.join(process.cwd(), 'data', 'db.json');
 
 export interface DatabaseState {
   users: any[];
@@ -36,11 +38,26 @@ class LocalDB {
 
   private load() {
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      if (isServerless && !fs.existsSync(DB_FILE) && fs.existsSync(BUNDLED_DB_FILE)) {
+        try {
+          if (!fs.existsSync(BASE_DATA_DIR)) {
+            fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
+          }
+          const seed = fs.readFileSync(BUNDLED_DB_FILE, 'utf-8');
+          fs.writeFileSync(DB_FILE, seed, 'utf-8');
+        } catch (e) {
+          console.warn('Could not copy bundled db.json to /tmp:', e);
+        }
+      }
+
+      if (!fs.existsSync(BASE_DATA_DIR)) {
+        fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
       }
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        this.data = JSON.parse(raw);
+      } else if (fs.existsSync(BUNDLED_DB_FILE)) {
+        const raw = fs.readFileSync(BUNDLED_DB_FILE, 'utf-8');
         this.data = JSON.parse(raw);
       } else {
         this.save();
@@ -53,8 +70,8 @@ class LocalDB {
 
   public save() {
     try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      if (!fs.existsSync(BASE_DATA_DIR)) {
+        fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
       }
       fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (err) {
